@@ -1,26 +1,16 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/wavekat/wavekat-brand/main/logo/wavekat-turn-banner.svg" alt="wavekat-turn" width="600">
+  <img src="https://github.com/wavekat/wavekat-brand/raw/main/assets/banners/wavekat-turn-narrow.svg" alt="WaveKat Turn">
 </p>
 
-<p align="center">
-  <strong>Unified turn detection for voice pipelines</strong>
-</p>
+[![Crates.io](https://img.shields.io/crates/v/wavekat-turn.svg)](https://crates.io/crates/wavekat-turn)
+[![docs.rs](https://docs.rs/wavekat-turn/badge.svg)](https://docs.rs/wavekat-turn)
 
-<p align="center">
-  <a href="https://crates.io/crates/wavekat-turn"><img src="https://img.shields.io/crates/v/wavekat-turn.svg" alt="crates.io"></a>
-  <a href="https://docs.rs/wavekat-turn"><img src="https://docs.rs/wavekat-turn/badge.svg" alt="docs.rs"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/crates/l/wavekat-turn.svg" alt="license"></a>
-</p>
-
----
-
-`wavekat-turn` predicts whether a user has finished speaking, enabling
-natural turn-taking in voice AI pipelines. It wraps multiple open-source
-turn detection models behind unified Rust traits, the same pattern as
+Unified turn detection for voice pipelines, wrapping multiple open-source
+models behind common Rust traits. Same pattern as
 [wavekat-vad](https://github.com/wavekat/wavekat-vad).
 
-> **Status:** Early development. Trait API is defined; backend implementations
-> are stubs pending ONNX model integration.
+> [!WARNING]
+> Early development. Trait API is defined; backend implementations are stubs pending ONNX model integration.
 
 ## Backends
 
@@ -35,7 +25,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wavekat-turn = { version = "0.1", features = ["pipecat"] }
+wavekat-turn = { version = "0.0.1", features = ["pipecat"] }
 ```
 
 Use the audio-based detector:
