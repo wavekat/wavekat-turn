@@ -13,6 +13,7 @@ pipecat = ["dep:ort", "dep:ndarray"]
 livekit = ["dep:ort", "dep:ndarray"]
 
 [dependencies]
+wavekat-core = "0.0.2"
 thiserror = "2"
 
 # ONNX backends (optional)

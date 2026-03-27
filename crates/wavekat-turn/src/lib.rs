@@ -25,6 +25,7 @@ pub mod audio;
 pub mod text;
 
 pub use error::TurnError;
+pub use wavekat_core::AudioFrame;
 
 /// The predicted turn state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,11 +60,26 @@ pub enum Role {
     Assistant,
 }
 
-/// Turn detector that operates on raw audio frames.
+/// Turn detector that operates on raw audio.
 ///
-/// Implementations receive 16 kHz f32 PCM and return a turn prediction.
+/// Implementations buffer audio internally and run prediction on demand.
+/// The typical flow with VAD:
+///
+/// 1. **Every audio chunk** → [`push_audio`](AudioTurnDetector::push_audio)
+/// 2. **VAD fires "speech started"** → [`reset`](AudioTurnDetector::reset)
+/// 3. **VAD fires "speech stopped"** → [`predict`](AudioTurnDetector::predict)
 pub trait AudioTurnDetector: Send + Sync {
-    fn predict_audio(&mut self, audio: &[f32]) -> Result<TurnPrediction, TurnError>;
+    /// Feed audio into the internal buffer.
+    ///
+    /// Call continuously with incoming audio frames (16 kHz mono).
+    fn push_audio(&mut self, frame: &AudioFrame);
+
+    /// Run prediction on buffered audio.
+    ///
+    /// Call when VAD detects end of speech.
+    fn predict(&mut self) -> Result<TurnPrediction, TurnError>;
+
+    /// Clear the internal buffer. Call when a new speech turn begins.
     fn reset(&mut self);
 }
 

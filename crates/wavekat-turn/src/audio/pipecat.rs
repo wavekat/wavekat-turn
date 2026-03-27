@@ -8,11 +8,15 @@
 //! - Inference: ~12 ms on CPU
 //! - License: BSD 2-Clause
 
-use crate::{AudioTurnDetector, TurnError, TurnPrediction};
+use crate::{AudioFrame, AudioTurnDetector, TurnError, TurnPrediction};
 
 /// Pipecat Smart Turn v3 detector.
+///
+/// Buffers up to 8 seconds of audio internally. When [`predict`](AudioTurnDetector::predict)
+/// is called, it takes the last 8s (zero-padded at front if shorter),
+/// extracts Whisper log-mel features, and runs ONNX inference.
 pub struct PipecatSmartTurn {
-    // TODO: ONNX session + state
+    // TODO: ONNX session + audio ring buffer + state
 }
 
 impl PipecatSmartTurn {
@@ -23,11 +27,15 @@ impl PipecatSmartTurn {
 }
 
 impl AudioTurnDetector for PipecatSmartTurn {
-    fn predict_audio(&mut self, _audio: &[f32]) -> Result<TurnPrediction, TurnError> {
-        todo!("run ONNX inference")
+    fn push_audio(&mut self, _frame: &AudioFrame) {
+        todo!("append to ring buffer")
+    }
+
+    fn predict(&mut self) -> Result<TurnPrediction, TurnError> {
+        todo!("truncate/pad to 8s, extract mel features, run ONNX inference")
     }
 
     fn reset(&mut self) {
-        todo!("reset internal state")
+        todo!("clear ring buffer and internal state")
     }
 }
