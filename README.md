@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="https://github.com/wavekat/wavekat-brand/raw/main/assets/banners/wavekat-turn-narrow.svg" alt="WaveKat Turn">
+  <a href="https://github.com/wavekat/wavekat-turn">
+    <img src="https://github.com/wavekat/wavekat-brand/raw/main/assets/banners/wavekat-turn-narrow.svg" alt="WaveKat Turn">
+  </a>
 </p>
 
 [![Crates.io](https://img.shields.io/crates/v/wavekat-turn.svg)](https://crates.io/crates/wavekat-turn)
