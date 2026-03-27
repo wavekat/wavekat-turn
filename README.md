@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/wavekat/wavekat-brand/main/logo/wavekat-turn-banner.svg" alt="wavekat-turn" width="600">
+  <img src="https://raw.githubusercontent.com/wavekat/wavekat-brand/main/assets/banners/wavekat-turn-narrow.svg" alt="wavekat-turn" width="600">
 </p>
 
 <p align="center">
