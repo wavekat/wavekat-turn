@@ -25,7 +25,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wavekat-turn = { version = "0.1", features = ["pipecat"] }
+wavekat-turn = { version = "0.0.1", features = ["pipecat"] }
 ```
 
 Use the audio-based detector:
