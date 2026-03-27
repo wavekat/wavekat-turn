@@ -4,8 +4,13 @@ description = "Unified turn detection with multiple backends"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository = "https://github.com/wavekat/wavekat-turn"
+homepage = "https://github.com/wavekat/wavekat-turn"
+documentation = "https://docs.rs/wavekat-turn"
+readme = "../../README.md"
 keywords = ["turn-detection", "voice", "audio", "telephony", "wavekat"]
 categories = ["multimedia::audio"]
+exclude = ["CHANGELOG.md"]
 
 [features]
 default = []
