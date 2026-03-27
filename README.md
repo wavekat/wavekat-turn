@@ -9,8 +9,8 @@ Unified turn detection for voice pipelines, wrapping multiple open-source
 models behind common Rust traits. Same pattern as
 [wavekat-vad](https://github.com/wavekat/wavekat-vad).
 
-> **Status:** Early development. Trait API is defined; backend implementations
-> are stubs pending ONNX model integration.
+> [!WARNING]
+> Early development. Trait API is defined; backend implementations are stubs pending ONNX model integration.
 
 ## Backends
 
