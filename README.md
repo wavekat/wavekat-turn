@@ -21,11 +21,8 @@ models behind common Rust traits. Same pattern as
 
 ## Quick Start
 
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-wavekat-turn = { version = "0.0.1", features = ["pipecat"] }
+```sh
+cargo add wavekat-turn --features pipecat
 ```
 
 Use the audio-based detector:
