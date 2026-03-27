@@ -1,3 +1,9 @@
 [workspace]
 git_tag_enable = true
 git_release_enable = true
+
+[[package]]
+name = "wavekat-turn"
+
+[[package.files]]
+path = "README.md"
