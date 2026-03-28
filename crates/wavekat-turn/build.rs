@@ -21,7 +21,10 @@ use std::path::Path;
 fn main() {
     // docs.rs builds with --network none; write empty placeholders so
     // include_bytes! compiles without downloading anything.
-    if env::var("DOCS_RS").is_ok() {
+    if env::var("DOCS_RS").is_err() {
+        #[cfg(feature = "pipecat")]
+        setup_pipecat_model();
+    } else {
         #[cfg(feature = "pipecat")]
         {
             let out_dir = env::var("OUT_DIR").expect("OUT_DIR not set");
@@ -30,11 +33,7 @@ fn main() {
                 fs::write(&model_path, b"").expect("failed to write placeholder model");
             }
         }
-        return;
     }
-
-    #[cfg(feature = "pipecat")]
-    setup_pipecat_model();
 }
 
 #[cfg(feature = "pipecat")]
@@ -78,8 +77,8 @@ fn setup_pipecat_model() {
     }
 
     // Option 2: download (caller may override the URL)
-    let url = env::var("PIPECAT_SMARTTURN_MODEL_URL")
-        .unwrap_or_else(|_| DEFAULT_MODEL_URL.to_string());
+    let url =
+        env::var("PIPECAT_SMARTTURN_MODEL_URL").unwrap_or_else(|_| DEFAULT_MODEL_URL.to_string());
 
     println!("cargo:warning=Downloading Pipecat Smart Turn model ({MODEL_VERSION}) from {url}");
 

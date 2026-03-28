@@ -54,8 +54,8 @@ use ort::{inputs, value::Tensor};
 use realfft::num_complex::Complex;
 use realfft::{RealFftPlanner, RealToComplex};
 
-use crate::{AudioFrame, AudioTurnDetector, StageTiming, TurnError, TurnPrediction, TurnState};
 use crate::onnx;
+use crate::{AudioFrame, AudioTurnDetector, StageTiming, TurnError, TurnPrediction, TurnState};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -77,8 +77,7 @@ const N_FREQS: usize = N_FFT / 2 + 1; // 201
 const RING_CAPACITY: usize = 8 * SAMPLE_RATE as usize; // 128 000
 
 /// Embedded ONNX model bytes, downloaded by build.rs at compile time.
-const MODEL_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/smart-turn-v3.2-cpu.onnx"));
+const MODEL_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/smart-turn-v3.2-cpu.onnx"));
 
 // ---------------------------------------------------------------------------
 // Mel feature extractor
@@ -189,7 +188,11 @@ impl MelExtractor {
             }
 
             self.fft
-                .process_with_scratch(&mut frame_buf, &mut self.spectrum_buf, &mut self.fft_scratch)
+                .process_with_scratch(
+                    &mut frame_buf,
+                    &mut self.spectrum_buf,
+                    &mut self.fft_scratch,
+                )
                 .expect("FFT failed: internal buffer size mismatch");
 
             for (k, c) in self.spectrum_buf.iter().enumerate() {
@@ -247,7 +250,7 @@ fn hz_to_mel(hz: f32) -> f32 {
     const F_SP: f32 = 200.0 / 3.0; // linear region slope (Hz per mel)
     const MIN_LOG_HZ: f32 = 1000.0;
     const MIN_LOG_MEL: f32 = MIN_LOG_HZ / F_SP; // = 15.0
-    // logstep = ln(6.4) / 27  (≈ 0.068752)
+                                                // logstep = ln(6.4) / 27  (≈ 0.068752)
     let logstep = (6.4_f32).ln() / 27.0;
     if hz >= MIN_LOG_HZ {
         MIN_LOG_MEL + (hz / MIN_LOG_HZ).ln() / logstep
@@ -274,7 +277,13 @@ fn mel_to_hz(mel: f32) -> f32 {
 /// Matches `librosa.filters.mel(sr, n_fft, n_mels, fmin, fmax,
 ///   norm="slaney", dtype=float32)` which is what HuggingFace's
 /// `WhisperFeatureExtractor` uses internally.
-fn build_mel_filters(sr: usize, n_fft: usize, n_mels: usize, f_min: f32, f_max: f32) -> Array2<f32> {
+fn build_mel_filters(
+    sr: usize,
+    n_fft: usize,
+    n_mels: usize,
+    f_min: f32,
+    f_max: f32,
+) -> Array2<f32> {
     let n_freqs = n_fft / 2 + 1;
 
     // FFT frequency bins: 0, sr/n_fft, 2·sr/n_fft, …
@@ -482,9 +491,18 @@ impl AudioTurnDetector for PipecatSmartTurn {
 
         let us = |a: Instant, b: Instant| (b - a).as_secs_f64() * 1_000_000.0;
         let stage_times = vec![
-            StageTiming { name: "audio_prep", us: us(t_start, t_after_audio_prep) },
-            StageTiming { name: "mel", us: us(t_after_audio_prep, t_after_mel) },
-            StageTiming { name: "onnx", us: us(t_after_mel, t_after_onnx) },
+            StageTiming {
+                name: "audio_prep",
+                us: us(t_start, t_after_audio_prep),
+            },
+            StageTiming {
+                name: "mel",
+                us: us(t_after_audio_prep, t_after_mel),
+            },
+            StageTiming {
+                name: "onnx",
+                us: us(t_after_mel, t_after_onnx),
+            },
         ];
 
         // probability = P(turn complete); > 0.5 means the speaker has finished

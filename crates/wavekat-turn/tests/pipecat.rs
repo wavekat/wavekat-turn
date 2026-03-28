@@ -118,7 +118,10 @@ fn test_multiple_predicts_are_deterministic() {
     push_silence(&mut d, 2.0);
     let p1 = d.predict().unwrap();
     let p2 = d.predict().unwrap();
-    assert_eq!(p1.state, p2.state, "repeated predict should give same state");
+    assert_eq!(
+        p1.state, p2.state,
+        "repeated predict should give same state"
+    );
     assert!(
         (p1.confidence - p2.confidence).abs() < 1e-5,
         "repeated predict should give same confidence"
@@ -143,7 +146,10 @@ fn test_latency_under_50ms() {
 #[test]
 fn test_from_file_invalid_path_returns_error() {
     let result = PipecatSmartTurn::from_file("/nonexistent/path/model.onnx");
-    assert!(result.is_err(), "from_file with invalid path should return an error");
+    assert!(
+        result.is_err(),
+        "from_file with invalid path should return an error"
+    );
 }
 
 /// Smoke test: latency is measured and non-zero (always runs, including debug).
@@ -153,5 +159,9 @@ fn test_latency_is_measured() {
     push_silence(&mut d, 2.0);
     let pred = d.predict().unwrap();
     // latency_ms == 0 would mean the timer wasn't working
-    assert!(pred.latency_ms < 60_000, "latency suspiciously large: {} ms", pred.latency_ms);
+    assert!(
+        pred.latency_ms < 60_000,
+        "latency suspiciously large: {} ms",
+        pred.latency_ms
+    );
 }
