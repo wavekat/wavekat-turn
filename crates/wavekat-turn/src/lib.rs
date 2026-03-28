@@ -18,6 +18,9 @@
 
 pub mod error;
 
+#[cfg(any(feature = "pipecat", feature = "livekit"))]
+pub(crate) mod onnx;
+
 #[cfg(feature = "pipecat")]
 pub mod audio;
 
