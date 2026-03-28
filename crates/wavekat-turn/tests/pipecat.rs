@@ -140,6 +140,12 @@ fn test_latency_under_50ms() {
     );
 }
 
+#[test]
+fn test_from_file_invalid_path_returns_error() {
+    let result = PipecatSmartTurn::from_file("/nonexistent/path/model.onnx");
+    assert!(result.is_err(), "from_file with invalid path should return an error");
+}
+
 /// Smoke test: latency is measured and non-zero (always runs, including debug).
 #[test]
 fn test_latency_is_measured() {
