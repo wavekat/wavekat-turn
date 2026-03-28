@@ -13,6 +13,14 @@
   same env-var overrides (`*_MODEL_PATH`, `*_MODEL_URL`).
 - **Turn logic stays here.** The lab (`wavekat-lab`) calls these backends as a library consumer.
   No turn logic lives in the lab.
+- **Model loading strategy by size.**
+  - **< ~30 MB → embed** with `include_bytes!()`. Binary size is acceptable; zero runtime setup.
+    Pipecat (8 MB) uses this path.
+  - **≥ ~30 MB → runtime load** from disk. Embedding would bloat the binary unacceptably.
+    Future large-model backends must use this path (see "Out of scope" section).
+- **`from_file()` constructor on all backends.** Even embedded-model backends expose a
+  `from_file(path)` constructor so users can substitute custom or fine-tuned weights, and to
+  establish the pattern that future large-model backends will use as their primary constructor.
 
 ---
 
@@ -84,7 +92,10 @@ Document findings as comments in `pipecat.rs` before implementation.
 
 ## Phase 2 — Build system
 
-Create `crates/wavekat-turn/build.rs` following the wavekat-vad pattern:
+Create `crates/wavekat-turn/build.rs` following the wavekat-vad pattern.
+
+This phase covers the **embedded** path only (Pipecat). Large-model backends (LiveKit) need
+a different build.rs strategy described in Phase 5.
 
 - Download Smart Turn v3 ONNX to `OUT_DIR` at build time
 - SHA-256 verification
@@ -117,8 +128,20 @@ pub struct PipecatSmartTurn {
 }
 ```
 
-**`new()`** — load model via `include_bytes!(concat!(env!("OUT_DIR"), "/..."))`,
-create `ort::Session`, initialize ring buffer.
+**Constructors:**
+
+```rust
+/// Default constructor — loads the model embedded at compile time.
+pub fn new() -> Result<Self, TurnError> { ... }
+
+/// Load a custom model from disk — useful for fine-tuned weights or CI environments
+/// where the binary should stay small and the model is provided separately.
+pub fn from_file(path: impl AsRef<Path>) -> Result<Self, TurnError> { ... }
+```
+
+`new()` calls `session_from_memory(include_bytes!(concat!(env!("OUT_DIR"), "/...")))`.
+`from_file()` calls `session_from_file(path)`. Both share `Self::build(session)` for
+the rest of initialization.
 
 **`push_audio()`** — validate sample rate (16 kHz), convert i16→f32 if needed,
 append to ring buffer (evict oldest when over capacity).
@@ -141,6 +164,7 @@ Reference implementations:
 Add `tests/pipecat.rs` (integration tests under `#[cfg(feature = "pipecat")]`):
 
 - `test_new_loads_model` — `PipecatSmartTurn::new()` succeeds
+- `test_from_file_loads_model` — `PipecatSmartTurn::from_file(path)` succeeds given a valid path
 - `test_predict_silence` — feed 2s of zeros, expect low confidence
 - `test_predict_finished` — feed known-good finished-turn audio (WAV fixture), expect
   `TurnState::Finished` with confidence > 0.7
@@ -151,24 +175,25 @@ Add a small WAV fixture (`tests/fixtures/finished_turn.wav`) for the audio test 
 
 ---
 
-## Phase 5 — LiveKitEou (deferred)
-
-Implement `src/text/livekit.rs` after Pipecat is proven end-to-end.
-
-Different approach — text model using a tokenizer:
-- Model: distilled Qwen2.5-0.5B ONNX (~400 MB), LiveKit Model License
-- Input: tokenized transcript + conversation context
-- Likely needs a tokenizer crate (e.g. `tokenizers` from HuggingFace)
-
-Open questions before starting:
-1. Confirm model URL and whether `tokenizers` crate is acceptable (it's a large dep)
-2. Confirm exact input format the model expects for transcript + context
-
----
-
 ## Open questions
 
 1. **Smart Turn v3 model URL** — not yet confirmed (needed for Phase 2)
 2. **Exact input tensor shape** — need to inspect the model (needed for Phase 3)
 3. **Mel-feature spec** — need to confirm to avoid silent preprocessing mismatch
-4. **LiveKit tokenizer strategy** — `tokenizers` crate vs. manual BPE (needed before Phase 5)
+
+---
+
+## Out of scope — LiveKitEou
+
+> **Not part of this branch.** Will be implemented in a dedicated feature branch.
+
+Key notes to carry forward:
+
+- Model: distilled Qwen2.5-0.5B ONNX (~400 MB), LiveKit Model License
+- Input: tokenized transcript + conversation context
+- At 400 MB, `include_bytes!()` is not viable — needs a runtime-load strategy (build.rs
+  downloads to a user cache dir, binary loads from disk via `from_file()`)
+- The `from_file()` constructor established on `PipecatSmartTurn` in Phase 3 gives LiveKit
+  the same public API shape to follow
+- Open questions for that branch: model URL, `tokenizers` crate acceptability, exact input
+  format, CI/CD cache-dir strategy
