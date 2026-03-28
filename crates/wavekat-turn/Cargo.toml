@@ -11,10 +11,11 @@ readme = "../../README.md"
 keywords = ["turn-detection", "voice", "audio", "telephony", "wavekat"]
 categories = ["multimedia::audio"]
 exclude = ["CHANGELOG.md"]
+build = "build.rs"
 
 [features]
 default = []
-pipecat = ["dep:ort", "dep:ndarray"]
+pipecat = ["dep:ort", "dep:ndarray", "dep:realfft", "dep:ureq"]
 livekit = ["dep:ort", "dep:ndarray"]
 
 [dependencies]
@@ -22,8 +23,12 @@ wavekat-core = "0.0.2"
 thiserror = "2"
 
 # ONNX backends (optional)
-ort = { version = "2.0.0-rc.12", optional = true }
-ndarray = { version = "0.16", optional = true }
+ort = { version = "2.0.0-rc.12", optional = true, features = ["ndarray"] }
+ndarray = { version = "0.17", optional = true }
+realfft = { version = "3", optional = true }
+
+[build-dependencies]
+ureq = { version = "3", optional = true }
 
 [dev-dependencies]
 hound = "3.5"
