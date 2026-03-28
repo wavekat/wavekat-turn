@@ -54,7 +54,7 @@ use ort::{inputs, value::Tensor};
 use realfft::num_complex::Complex;
 use realfft::{RealFftPlanner, RealToComplex};
 
-use crate::{AudioFrame, AudioTurnDetector, TurnError, TurnPrediction, TurnState};
+use crate::{AudioFrame, AudioTurnDetector, StageTiming, TurnError, TurnPrediction, TurnState};
 use crate::onnx;
 
 // ---------------------------------------------------------------------------
@@ -99,6 +99,12 @@ struct MelExtractor {
     fft_scratch: Vec<Complex<f32>>,
     /// Reusable output spectrum buffer (N_FREQS complex values).
     spectrum_buf: Vec<Complex<f32>>,
+    /// Cached power spectrogram [N_FREQS × (N_FRAMES+1)] from the previous call.
+    /// Enables incremental STFT: only new frames are recomputed.
+    cached_power_spec: Option<Array2<f32>>,
+    /// Cached mel spectrogram [N_MELS × N_FRAMES] from the previous call.
+    /// Enables incremental mel filterbank: only new columns are recomputed.
+    cached_mel_spec: Option<Array2<f32>>,
 }
 
 impl MelExtractor {
@@ -123,12 +129,19 @@ impl MelExtractor {
             fft,
             fft_scratch,
             spectrum_buf,
+            cached_power_spec: None,
+            cached_mel_spec: None,
         }
     }
 
     /// Compute a [N_MELS × N_FRAMES] log-mel spectrogram from exactly
     /// `RING_CAPACITY` samples of 16 kHz mono audio.
-    fn extract(&mut self, audio: &[f32]) -> Array2<f32> {
+    ///
+    /// `shift_frames` is how many STFT frames worth of new audio were added
+    /// since the last call. When a valid cache exists and `shift_frames` is
+    /// in range, only the last `shift_frames` columns of the power spectrogram
+    /// are recomputed; the rest are copied from the shifted cache.
+    fn extract(&mut self, audio: &[f32], shift_frames: usize) -> Array2<f32> {
         debug_assert_eq!(audio.len(), RING_CAPACITY);
 
         // ---- Center-pad: N_FFT/2 zeros on each side → 128 400 samples ----
@@ -141,11 +154,30 @@ impl MelExtractor {
         // n_total = (128 400 − 400) / 160 + 1 = 801
         let n_total_frames = (padded.len() - N_FFT) / HOP_LENGTH + 1;
 
-        // ---- STFT → power spectrogram [N_FREQS × n_total_frames] ----
-        let mut power_spec = Array2::<f32>::zeros((N_FREQS, n_total_frames));
+        // ---- Incremental STFT ----
+        // If we have a cached power spec and shift_frames < n_total_frames,
+        // reuse the unchanged frames by shifting the cache left and only
+        // computing the `shift_frames` new columns at the end.
+        let first_new_frame = match &self.cached_power_spec {
+            Some(cached) if shift_frames > 0 && shift_frames < n_total_frames => {
+                let kept = n_total_frames - shift_frames;
+                let mut power_spec = Array2::<f32>::zeros((N_FREQS, n_total_frames));
+                power_spec
+                    .slice_mut(s![.., ..kept])
+                    .assign(&cached.slice(s![.., shift_frames..]));
+                self.cached_power_spec = Some(power_spec);
+                kept // only compute frames [kept..n_total_frames]
+            }
+            _ => {
+                self.cached_power_spec = Some(Array2::<f32>::zeros((N_FREQS, n_total_frames)));
+                0 // cold start: compute all frames
+            }
+        };
+
+        let power_spec = self.cached_power_spec.as_mut().unwrap();
         let mut frame_buf = vec![0.0f32; N_FFT];
 
-        for frame_idx in 0..n_total_frames {
+        for frame_idx in first_new_frame..n_total_frames {
             let start = frame_idx * HOP_LENGTH;
             // Apply periodic Hann window
             for (i, (&s, &w)) in padded[start..start + N_FFT]
@@ -166,10 +198,27 @@ impl MelExtractor {
         }
 
         // Take first N_FRAMES columns (drop the trailing frame)
-        let power_spec = power_spec.slice(s![.., ..N_FRAMES]).to_owned();
+        let power_spec_view = power_spec.slice(s![.., ..N_FRAMES]);
 
-        // ---- Apply mel filterbank: [N_MELS, N_FREQS] × [N_FREQS, N_FRAMES] ----
-        let mel_spec = self.mel_filters.dot(&power_spec); // [80, 800]
+        // ---- Incremental mel filterbank: [N_MELS, N_FREQS] × [N_FREQS, shift_frames] ----
+        // Reuse the cached mel columns for the unchanged frames; only multiply
+        // the new power-spectrum columns against the filterbank.
+        let mel_spec = match &self.cached_mel_spec {
+            Some(cached) if shift_frames > 0 && shift_frames <= N_FRAMES => {
+                let kept = N_FRAMES - shift_frames;
+                let mut ms = Array2::<f32>::zeros((N_MELS, N_FRAMES));
+                // Shift old columns left
+                ms.slice_mut(s![.., ..kept])
+                    .assign(&cached.slice(s![.., shift_frames..]));
+                // Apply filterbank only to the new power-spectrum columns
+                let new_power = power_spec_view.slice(s![.., kept..]);
+                ms.slice_mut(s![.., kept..])
+                    .assign(&self.mel_filters.dot(&new_power));
+                ms
+            }
+            _ => self.mel_filters.dot(&power_spec_view),
+        };
+        self.cached_mel_spec = Some(mel_spec.clone());
 
         // ---- Log10 with floor at 1e-10 ----
         let mut log_mel = mel_spec.mapv(|x| x.max(1e-10_f32).log10());
@@ -180,6 +229,12 @@ impl MelExtractor {
         log_mel.mapv_inplace(|x| (x.max(max_val - 8.0) + 4.0) / 4.0);
 
         log_mel
+    }
+
+    /// Invalidate all caches (call on reset).
+    fn invalidate_cache(&mut self) {
+        self.cached_power_spec = None;
+        self.cached_mel_spec = None;
     }
 }
 
@@ -324,6 +379,9 @@ pub struct PipecatSmartTurn {
     session: ort::session::Session,
     ring_buffer: VecDeque<f32>,
     mel: MelExtractor,
+    /// Counts samples pushed since the last `predict()` call.
+    /// Used to compute `shift_frames` for incremental STFT.
+    samples_since_predict: usize,
 }
 
 // SAFETY: ort::Session is Send in ort 2.x. Sync is safe because every
@@ -352,6 +410,7 @@ impl PipecatSmartTurn {
             session,
             ring_buffer: VecDeque::with_capacity(RING_CAPACITY),
             mel: MelExtractor::new(),
+            samples_since_predict: 0,
         }
     }
 }
@@ -372,6 +431,7 @@ impl AudioTurnDetector for PipecatSmartTurn {
             self.ring_buffer.drain(..overflow);
         }
         self.ring_buffer.extend(samples.iter().copied());
+        self.samples_since_predict += samples.len();
     }
 
     /// Run inference on the buffered audio.
@@ -381,14 +441,19 @@ impl AudioTurnDetector for PipecatSmartTurn {
     fn predict(&mut self) -> Result<TurnPrediction, TurnError> {
         let t_start = Instant::now();
 
-        // Snapshot the ring buffer and prepare exactly 128 000 samples
+        // Stage 1: Snapshot the ring buffer and prepare exactly 128 000 samples
+        let shift_frames = self.samples_since_predict / HOP_LENGTH;
+        self.samples_since_predict = 0;
+
         let buffered: Vec<f32> = self.ring_buffer.iter().copied().collect();
         let audio = prepare_audio(&buffered);
+        let t_after_audio_prep = Instant::now();
 
-        // Extract [N_MELS × N_FRAMES] log-mel features
-        let mel_spec = self.mel.extract(&audio);
+        // Stage 2: Extract [N_MELS × N_FRAMES] log-mel features (incremental)
+        let mel_spec = self.mel.extract(&audio, shift_frames);
+        let t_after_mel = Instant::now();
 
-        // Reshape to [1, N_MELS, N_FRAMES] for batch inference
+        // Stage 3: Reshape to [1, N_MELS, N_FRAMES] and run ONNX inference
         let (raw, _) = mel_spec.into_raw_vec_and_offset();
         let input_array = Array3::from_shape_vec((1, N_MELS, N_FRAMES), raw)
             .expect("internal: mel output has wrong element count");
@@ -400,6 +465,7 @@ impl AudioTurnDetector for PipecatSmartTurn {
             .session
             .run(inputs!["input_features" => input_tensor])
             .map_err(|e| TurnError::BackendError(format!("inference failed: {e}")))?;
+        let t_after_onnx = Instant::now();
 
         // Extract sigmoid probability from the "logits" output
         let output = outputs
@@ -414,6 +480,13 @@ impl AudioTurnDetector for PipecatSmartTurn {
 
         let latency_ms = t_start.elapsed().as_millis() as u64;
 
+        let us = |a: Instant, b: Instant| (b - a).as_secs_f64() * 1_000_000.0;
+        let stage_times = vec![
+            StageTiming { name: "audio_prep", us: us(t_start, t_after_audio_prep) },
+            StageTiming { name: "mel", us: us(t_after_audio_prep, t_after_mel) },
+            StageTiming { name: "onnx", us: us(t_after_mel, t_after_onnx) },
+        ];
+
         // probability = P(turn complete); > 0.5 means the speaker has finished
         let (state, confidence) = if probability > 0.5 {
             (TurnState::Finished, probability)
@@ -425,11 +498,14 @@ impl AudioTurnDetector for PipecatSmartTurn {
             state,
             confidence,
             latency_ms,
+            stage_times,
         })
     }
 
     /// Clear the ring buffer. Call at the start of each new speech turn.
     fn reset(&mut self) {
         self.ring_buffer.clear();
+        self.samples_since_predict = 0;
+        self.mel.invalidate_cache();
     }
 }

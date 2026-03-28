@@ -41,12 +41,23 @@ pub enum TurnState {
     Wait,
 }
 
+/// Per-stage timing entry.
+#[derive(Debug, Clone)]
+pub struct StageTiming {
+    /// Stage name (e.g. "audio_prep", "mel", "onnx").
+    pub name: &'static str,
+    /// Time in microseconds for this stage.
+    pub us: f64,
+}
+
 /// A turn detection prediction with confidence and timing metadata.
 #[derive(Debug, Clone)]
 pub struct TurnPrediction {
     pub state: TurnState,
     pub confidence: f32,
     pub latency_ms: u64,
+    /// Per-stage timing breakdown in pipeline order.
+    pub stage_times: Vec<StageTiming>,
 }
 
 /// A single turn in the conversation, for context-aware text detectors.
