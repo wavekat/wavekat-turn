@@ -1,0 +1,14 @@
+[
+  {
+    "file": "silence_2s.wav",
+    "probability": 0.987037
+  },
+  {
+    "file": "speech_finished.wav",
+    "probability": 0.984858
+  },
+  {
+    "file": "speech_mid.wav",
+    "probability": 0.047724
+  }
+]
