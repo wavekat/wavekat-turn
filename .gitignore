@@ -11,3 +11,6 @@ scripts/__pycache__/
 scripts/*.onnx
 __pycache__/
 *.pyc
+
+# Generated mel reference tensors (regenerate with scripts/gen_reference.py)
+*.mel.npy
