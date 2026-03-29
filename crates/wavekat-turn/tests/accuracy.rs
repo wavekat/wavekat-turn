@@ -63,7 +63,7 @@ fn load_wav_f32(path: &Path) -> Vec<f32> {
     match spec.sample_format {
         hound::SampleFormat::Int => reader
             .samples::<i16>()
-            .map(|s| s.unwrap() as f32 / i16::MAX as f32)
+            .map(|s| s.unwrap() as f32 / 32768.0) // match soundfile's normalization
             .collect(),
         hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
     }

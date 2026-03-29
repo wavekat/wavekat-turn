@@ -79,12 +79,18 @@ def load_audio(path: Path) -> np.ndarray:
     return audio
 
 
-def infer(audio: np.ndarray, session, extractor) -> float:
-    """Run the Pipecat pipeline on audio, return P(complete)."""
+def infer(audio: np.ndarray, session, extractor) -> tuple[float, np.ndarray]:
+    """Run the Pipecat pipeline on audio.
+
+    Returns:
+        (probability, mel_tensor) where mel_tensor has shape [80, 800].
+    """
     features = extractor(audio, sampling_rate=SAMPLE_RATE, return_tensors="np")
     input_features = features["input_features"].astype(np.float32)  # [1, 80, 800]
     outputs = session.run(None, {"input_features": input_features})
-    return float(np.squeeze(outputs[0]))  # already a sigmoid probability in [0, 1]
+    probability = float(np.squeeze(outputs[0]))  # already a sigmoid probability in [0, 1]
+    mel = input_features[0]  # [80, 800]
+    return probability, mel
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +118,8 @@ def main() -> None:
             print(f"ERROR: missing fixture {path}", file=sys.stderr)
             sys.exit(1)
         audio = load_audio(path)
-        prob = infer(audio, session, extractor)
+        prob, mel = infer(audio, session, extractor)
+        np.save(str(FIXTURES / f"{name}.mel.npy"), mel)
         print(f"  {name}: probability = {prob:.4f}")
         results.append({"file": name, "probability": round(prob, 6)})
 

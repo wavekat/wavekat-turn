@@ -143,12 +143,22 @@ impl MelExtractor {
     fn extract(&mut self, audio: &[f32], shift_frames: usize) -> Array2<f32> {
         debug_assert_eq!(audio.len(), RING_CAPACITY);
 
-        // ---- Center-pad: N_FFT/2 zeros on each side → 128 400 samples ----
-        // This replicates librosa/PyTorch `center=True` STFT behaviour, which
-        // gives exactly N_FRAMES + 1 = 801 frames; we discard the last one.
-        let pad = N_FFT / 2;
-        let mut padded = vec![0.0f32; pad + audio.len() + pad];
-        padded[pad..pad + audio.len()].copy_from_slice(audio);
+        // ---- Center-pad: N_FFT/2 reflect samples on each side → 128 400 samples ----
+        // Matches WhisperFeatureExtractor: np.pad(waveform, n_fft//2, mode="reflect").
+        // Reflect (not zero) padding ensures the boundary frames match Python exactly.
+        // Gives exactly N_FRAMES + 1 = 801 frames; we discard the last one.
+        let pad = N_FFT / 2; // 200
+        let n = audio.len(); // 128 000
+        let mut padded = vec![0.0f32; pad + n + pad];
+        padded[pad..pad + n].copy_from_slice(audio);
+        // Left reflect: padded[0..pad] = audio[pad..1] reversed (exclude edge)
+        for i in 0..pad {
+            padded[i] = audio[pad - i];
+        }
+        // Right reflect: padded[pad+n..pad+n+pad] = audio[n-2..n-2-pad] reversed
+        for i in 0..pad {
+            padded[pad + n + i] = audio[n - 2 - i];
+        }
 
         // n_total = (128 400 − 400) / 160 + 1 = 801
         let n_total_frames = (padded.len() - N_FFT) / HOP_LENGTH + 1;
@@ -525,5 +535,137 @@ impl AudioTurnDetector for PipecatSmartTurn {
         self.ring_buffer.clear();
         self.samples_since_predict = 0;
         self.mel.invalidate_cache();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Mel comparison tests (unit tests — need access to private MelExtractor)
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod mel_tests {
+    use std::path::{Path, PathBuf};
+
+    use ndarray::Array2;
+    use ndarray_npy::ReadNpyExt;
+
+    use super::{prepare_audio, MelExtractor, RING_CAPACITY, SAMPLE_RATE};
+
+    /// Max allowed element-wise absolute difference between Rust and Python mel.
+    const MEL_TOLERANCE: f32 = 0.05;
+
+    fn fixtures_dir() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap() // crates/
+            .parent()
+            .unwrap() // repo root
+            .join("tests/fixtures")
+    }
+
+    /// Load 16 kHz mono WAV as f32 in [-1, 1], normalised the same way as
+    /// Python's soundfile (divide by 32768, not i16::MAX).
+    fn load_wav_f32(path: &Path) -> Vec<f32> {
+        let mut reader = hound::WavReader::open(path)
+            .unwrap_or_else(|e| panic!("failed to open {}: {}", path.display(), e));
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, SAMPLE_RATE, "expected 16 kHz");
+        assert_eq!(spec.channels, 1, "expected mono");
+        match spec.sample_format {
+            hound::SampleFormat::Int => reader
+                .samples::<i16>()
+                .map(|s| s.unwrap() as f32 / 32768.0)
+                .collect(),
+            hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
+        }
+    }
+
+    fn load_python_mel(clip: &str) -> Array2<f32> {
+        let path = fixtures_dir().join(format!("{clip}.mel.npy"));
+        let file = std::fs::File::open(&path).unwrap_or_else(|_| {
+            panic!(
+                "missing {}: run `python scripts/gen_reference.py` first",
+                path.display()
+            )
+        });
+        Array2::<f32>::read_npy(file).expect("failed to parse .npy")
+    }
+
+    struct MelDiff {
+        max_diff: f32,
+        mean_diff: f32,
+        /// (mel_bin, frame) of the single largest diff
+        max_at: (usize, usize),
+        /// fraction of elements with diff > 0.01
+        outlier_frac: f32,
+    }
+
+    fn compare_mel(clip: &str) -> MelDiff {
+        let samples = load_wav_f32(&fixtures_dir().join(clip));
+        let audio = prepare_audio(&samples);
+        assert_eq!(audio.len(), RING_CAPACITY);
+
+        let mut extractor = MelExtractor::new();
+        let rust_mel = extractor.extract(&audio, 0);
+        let python_mel = load_python_mel(clip);
+
+        assert_eq!(rust_mel.shape(), python_mel.shape(), "{clip}: mel shape mismatch");
+
+        let shape = rust_mel.shape();
+        let (n_mels, n_frames) = (shape[0], shape[1]);
+
+        let mut max_diff = 0.0f32;
+        let mut max_at = (0, 0);
+        let mut sum_diff = 0.0f32;
+        let mut outliers = 0usize;
+
+        for m in 0..n_mels {
+            for t in 0..n_frames {
+                let d = (rust_mel[[m, t]] - python_mel[[m, t]]).abs();
+                sum_diff += d;
+                if d > max_diff {
+                    max_diff = d;
+                    max_at = (m, t);
+                }
+                if d > 0.01 {
+                    outliers += 1;
+                }
+            }
+        }
+
+        let total = (n_mels * n_frames) as f32;
+        MelDiff {
+            max_diff,
+            mean_diff: sum_diff / total,
+            max_at,
+            outlier_frac: outliers as f32 / total,
+        }
+    }
+
+    /// Print a markdown table of mel-level diffs between Rust and Python.
+    /// Run with: `make mel`
+    #[test]
+    #[ignore]
+    fn mel_report() {
+        let clips = ["silence_2s.wav", "speech_finished.wav", "speech_mid.wav"];
+
+        println!();
+        println!("MEL_TOLERANCE={MEL_TOLERANCE}");
+        println!();
+        println!("| Clip | Max Diff | Mean Diff | Max at (mel,frame) | Outliers >0.01 | Status |");
+        println!("|------|----------|-----------|---------------------|----------------|--------|");
+        for clip in clips {
+            let d = compare_mel(clip);
+            let status = if d.max_diff <= MEL_TOLERANCE { "PASS" } else { "FAIL" };
+            println!(
+                "| `{clip}` | {:.6} | {:.6} | ({},{}) | {:.2}% | {status} |",
+                d.max_diff,
+                d.mean_diff,
+                d.max_at.0,
+                d.max_at.1,
+                d.outlier_frac * 100.0,
+            );
+        }
+        println!();
     }
 }
