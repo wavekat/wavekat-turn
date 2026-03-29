@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5](https://github.com/wavekat/wavekat-turn/compare/v0.0.4...v0.0.5) - 2026-03-29
+
+### Added
+
+- accuracy cross-validation + fix reflect padding
+
 ## [0.0.4](https://github.com/wavekat/wavekat-turn/compare/v0.0.3...v0.0.4) - 2026-03-28
 
 ### Added
