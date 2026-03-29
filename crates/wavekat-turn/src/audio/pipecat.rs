@@ -609,7 +609,11 @@ mod mel_tests {
         let rust_mel = extractor.extract(&audio, 0);
         let python_mel = load_python_mel(clip);
 
-        assert_eq!(rust_mel.shape(), python_mel.shape(), "{clip}: mel shape mismatch");
+        assert_eq!(
+            rust_mel.shape(),
+            python_mel.shape(),
+            "{clip}: mel shape mismatch"
+        );
 
         let shape = rust_mel.shape();
         let (n_mels, n_frames) = (shape[0], shape[1]);
@@ -656,7 +660,11 @@ mod mel_tests {
         println!("|------|----------|-----------|---------------------|----------------|--------|");
         for clip in clips {
             let d = compare_mel(clip);
-            let status = if d.max_diff <= MEL_TOLERANCE { "PASS" } else { "FAIL" };
+            let status = if d.max_diff <= MEL_TOLERANCE {
+                "PASS"
+            } else {
+                "FAIL"
+            };
             println!(
                 "| `{clip}` | {:.6} | {:.6} | ({},{}) | {:.2}% | {status} |",
                 d.max_diff,

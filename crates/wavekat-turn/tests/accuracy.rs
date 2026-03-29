@@ -11,7 +11,7 @@
 //! Run individual regression tests: `cargo test --features pipecat --test accuracy`
 //! Run the full report table:        `make accuracy`
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const TOLERANCE: f32 = 0.02;
 
@@ -19,8 +19,9 @@ const TOLERANCE: f32 = 0.02;
 // Shared helpers
 // ---------------------------------------------------------------------------
 
+#[cfg(any(feature = "pipecat"))]
 fn fixtures_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap() // crates/
         .parent()
@@ -28,12 +29,16 @@ fn fixtures_dir() -> PathBuf {
         .join("tests/fixtures")
 }
 
+// RefEntry and load_reference are used by backend mods and accuracy_report.
+// Gate under any audio feature to avoid dead-code warnings in no-feature builds.
+#[cfg(any(feature = "pipecat"))]
 #[derive(serde::Deserialize)]
 struct RefEntry {
     file: String,
     probability: f32,
 }
 
+#[cfg(any(feature = "pipecat"))]
 fn load_reference() -> Vec<RefEntry> {
     let path = fixtures_dir().join("reference.json");
     let json = std::fs::read_to_string(&path).unwrap_or_else(|_| {
@@ -43,30 +48,6 @@ fn load_reference() -> Vec<RefEntry> {
         )
     });
     serde_json::from_str(&json).expect("invalid reference.json")
-}
-
-fn reference_prob(entries: &[RefEntry], name: &str) -> f32 {
-    entries
-        .iter()
-        .find(|e| e.file == name)
-        .unwrap_or_else(|| panic!("no entry for '{}' in reference.json", name))
-        .probability
-}
-
-/// Load a 16 kHz mono WAV and return samples as f32 in [-1, 1].
-fn load_wav_f32(path: &Path) -> Vec<f32> {
-    let mut reader = hound::WavReader::open(path)
-        .unwrap_or_else(|e| panic!("failed to open {}: {}", path.display(), e));
-    let spec = reader.spec();
-    assert_eq!(spec.sample_rate, 16_000, "expected 16 kHz");
-    assert_eq!(spec.channels, 1, "expected mono");
-    match spec.sample_format {
-        hound::SampleFormat::Int => reader
-            .samples::<i16>()
-            .map(|s| s.unwrap() as f32 / 32768.0) // match soundfile's normalization
-            .collect(),
-        hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +67,11 @@ impl Row {
     }
 
     fn status(&self) -> &'static str {
-        if self.diff() <= TOLERANCE { "PASS" } else { "FAIL" }
+        if self.diff() <= TOLERANCE {
+            "PASS"
+        } else {
+            "FAIL"
+        }
     }
 }
 
@@ -96,10 +81,35 @@ impl Row {
 
 #[cfg(feature = "pipecat")]
 mod pipecat {
+    use std::path::Path;
+
     use wavekat_turn::audio::PipecatSmartTurn;
     use wavekat_turn::{AudioFrame, AudioTurnDetector, TurnPrediction, TurnState};
 
-    use super::{fixtures_dir, load_wav_f32, reference_prob, RefEntry, Row, TOLERANCE};
+    use super::{fixtures_dir, RefEntry, Row, TOLERANCE};
+
+    fn load_wav_f32(path: &Path) -> Vec<f32> {
+        let mut reader = hound::WavReader::open(path)
+            .unwrap_or_else(|e| panic!("failed to open {}: {}", path.display(), e));
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, 16_000, "expected 16 kHz");
+        assert_eq!(spec.channels, 1, "expected mono");
+        match spec.sample_format {
+            hound::SampleFormat::Int => reader
+                .samples::<i16>()
+                .map(|s| s.unwrap() as f32 / 32768.0) // match soundfile's normalization
+                .collect(),
+            hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
+        }
+    }
+
+    fn reference_prob(entries: &[RefEntry], name: &str) -> f32 {
+        entries
+            .iter()
+            .find(|e| e.file == name)
+            .unwrap_or_else(|| panic!("no entry for '{}' in reference.json", name))
+            .probability
+    }
 
     pub(super) fn rows(entries: &[RefEntry]) -> Vec<Row> {
         entries
@@ -180,11 +190,13 @@ mod pipecat {
 #[test]
 #[ignore]
 fn accuracy_report() {
-    let entries = load_reference();
-    let mut rows: Vec<Row> = Vec::new();
-
-    #[cfg(feature = "pipecat")]
-    rows.extend(pipecat::rows(&entries));
+    let rows: Vec<Row> = {
+        #[allow(unused_mut)]
+        let mut r = Vec::new();
+        #[cfg(feature = "pipecat")]
+        r.extend(pipecat::rows(&load_reference()));
+        r
+    };
 
     let version = env!("CARGO_PKG_VERSION");
     println!();
