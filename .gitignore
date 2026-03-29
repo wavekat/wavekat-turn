@@ -4,3 +4,10 @@ Cargo.lock
 *.swo
 .DS_Store
 .cargo/config.toml
+
+# Python tooling (scripts/)
+scripts/.venv/
+scripts/__pycache__/
+scripts/*.onnx
+__pycache__/
+*.pyc

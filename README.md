@@ -87,6 +87,16 @@ wavekat-voice -->  orchestrates VAD + turn + ASR + LLM + TTS
 - Text-based detectors depend on ASR transcript quality. Pair with a
   streaming ASR provider for best results.
 
+## Accuracy
+
+Cross-validated against the original Python (Pipecat) pipeline on three fixture clips.
+Tolerance: ±0.02 probability.
+
+<!-- benchmark-table-start -->
+<!-- benchmark-table-end -->
+
+Run locally with `make accuracy`. See [`scripts/README.md`](scripts/README.md) for how to regenerate the Python reference.
+
 ## License
 
 Licensed under [Apache 2.0](LICENSE).
