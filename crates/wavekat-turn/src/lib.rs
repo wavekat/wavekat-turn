@@ -9,6 +9,10 @@
 //! - [`AudioTurnDetector`] — operates on raw audio frames (e.g. Pipecat Smart Turn)
 //! - [`TextTurnDetector`] — operates on ASR transcript text (e.g. LiveKit EOU)
 //!
+//! For most use cases, wrap a detector in [`TurnController`] to get
+//! automatic state tracking and soft-reset logic for VAD integration.
+//! See [`controller`] for details.
+//!
 //! # Feature flags
 //!
 //! | Feature | Backend | Input |
@@ -79,11 +83,23 @@ pub enum Role {
 /// Turn detector that operates on raw audio.
 ///
 /// Implementations buffer audio internally and run prediction on demand.
-/// The typical flow with VAD:
+///
+/// **Most users should wrap this in [`TurnController`]** rather than calling
+/// these methods directly. The controller tracks prediction state and provides
+/// [`reset_if_finished`](TurnController::reset_if_finished) for correct
+/// multi-utterance handling.
+///
+/// # Direct usage (advanced)
+///
+/// If you need full control over reset logic:
 ///
 /// 1. **Every audio chunk** → [`push_audio`](AudioTurnDetector::push_audio)
-/// 2. **VAD fires "speech started"** → [`reset`](AudioTurnDetector::reset)
-/// 3. **VAD fires "speech stopped"** → [`predict`](AudioTurnDetector::predict)
+/// 2. **VAD fires "speech stopped"** → [`predict`](AudioTurnDetector::predict)
+/// 3. **New turn begins** → [`reset`](AudioTurnDetector::reset)
+///
+/// Note: calling `reset` unconditionally on every VAD speech-start will discard
+/// audio context when the user pauses mid-sentence. See [`TurnController`] for
+/// the recommended approach.
 pub trait AudioTurnDetector: Send + Sync {
     /// Feed audio into the internal buffer.
     ///
@@ -92,10 +108,17 @@ pub trait AudioTurnDetector: Send + Sync {
 
     /// Run prediction on buffered audio.
     ///
-    /// Call when VAD detects end of speech.
+    /// Call when VAD detects end of speech. The buffer is **not** cleared
+    /// after prediction — call [`reset`](AudioTurnDetector::reset) explicitly
+    /// when starting a new turn.
     fn predict(&mut self) -> Result<TurnPrediction, TurnError>;
 
-    /// Clear the internal buffer. Call when a new speech turn begins.
+    /// Unconditionally clear the internal buffer.
+    ///
+    /// Use when you are certain a new turn is starting (e.g. after the
+    /// assistant finishes responding). For VAD speech-start events where
+    /// the user may be continuing, prefer
+    /// [`TurnController::reset_if_finished`].
     fn reset(&mut self);
 }
 

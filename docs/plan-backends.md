@@ -27,11 +27,13 @@
 ## Current state
 
 `PipecatSmartTurn` is fully implemented and all integration tests pass.
+`TurnController` wraps any `AudioTurnDetector` with state tracking and soft-reset.
 `LiveKitEou` remains a stub (out of scope for this branch).
 
 ```
 src/
 ├── lib.rs              — traits: AudioTurnDetector, TextTurnDetector, TurnPrediction, TurnState
+├── controller.rs       — TurnController<T> orchestration wrapper
 ├── error.rs            — TurnError: BackendError, InvalidInput, ModelNotLoaded
 ├── onnx.rs             — shared session_from_file / session_from_memory helpers
 ├── audio/
@@ -41,7 +43,10 @@ src/
     ├── mod.rs
     └── livekit.rs      — LiveKitEou (stub, out of scope)
 build.rs                — downloads smart-turn-v3.2-cpu.onnx at build time
+examples/
+└── controller.rs       — TurnController usage with real WAV fixtures
 tests/
+├── controller.rs       — 7 TurnController tests (mock detector)
 └── pipecat.rs          — 9 integration tests (all pass)
 ```
 

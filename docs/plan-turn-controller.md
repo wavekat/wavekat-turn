@@ -1,6 +1,6 @@
 # Plan: TurnController Wrapper
 
-**Status:** Not started
+**Status:** Complete
 **Date:** 2026-03-31
 
 ---
