@@ -63,7 +63,10 @@ impl AudioTurnDetector for MockDetector {
 #[test]
 fn reset_if_finished_resets_on_first_call() {
     let mut ctrl = TurnController::new(MockDetector::new());
-    assert!(ctrl.reset_if_finished(), "should reset when no prior prediction");
+    assert!(
+        ctrl.reset_if_finished(),
+        "should reset when no prior prediction"
+    );
 }
 
 #[test]
@@ -72,7 +75,10 @@ fn reset_if_finished_skips_after_unfinished() {
     ctrl.inner_mut().next_state = TurnState::Unfinished;
     ctrl.predict().unwrap();
 
-    assert!(!ctrl.reset_if_finished(), "should skip reset after Unfinished");
+    assert!(
+        !ctrl.reset_if_finished(),
+        "should skip reset after Unfinished"
+    );
 }
 
 #[test]
@@ -91,7 +97,11 @@ fn hard_reset_always_clears() {
     ctrl.predict().unwrap();
 
     ctrl.reset();
-    assert_eq!(ctrl.last_state(), None, "hard reset should clear last_state");
+    assert_eq!(
+        ctrl.last_state(),
+        None,
+        "hard reset should clear last_state"
+    );
     assert_eq!(ctrl.inner_mut().reset_count, 1);
 }
 
@@ -130,8 +140,16 @@ fn predict_accumulates_across_soft_reset() {
     ctrl.push_audio(&frame_b);
 
     // Buffer should contain both A and B
-    assert_eq!(ctrl.inner_mut().buffer_len, 3200, "buffer should have A + B samples");
-    assert_eq!(ctrl.inner_mut().reset_count, 0, "no resets should have occurred");
+    assert_eq!(
+        ctrl.inner_mut().buffer_len,
+        3200,
+        "buffer should have A + B samples"
+    );
+    assert_eq!(
+        ctrl.inner_mut().reset_count,
+        0,
+        "no resets should have occurred"
+    );
 }
 
 #[test]
