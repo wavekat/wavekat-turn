@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6](https://github.com/wavekat/wavekat-turn/compare/v0.0.5...v0.0.6) - 2026-03-31
+
+### Added
+
+- expose audio_duration_ms in TurnPrediction ([#15](https://github.com/wavekat/wavekat-turn/pull/15))
+- add TurnController ([#13](https://github.com/wavekat/wavekat-turn/pull/13))
+
 ## [0.0.5](https://github.com/wavekat/wavekat-turn/compare/v0.0.4...v0.0.5) - 2026-03-29
 
 ### Added
