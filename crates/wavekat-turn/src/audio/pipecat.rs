@@ -522,11 +522,14 @@ impl AudioTurnDetector for PipecatSmartTurn {
             (TurnState::Unfinished, 1.0 - probability)
         };
 
+        let audio_duration_ms = (self.ring_buffer.len() as u64 * 1000) / SAMPLE_RATE as u64;
+
         Ok(TurnPrediction {
             state,
             confidence,
             latency_ms,
             stage_times,
+            audio_duration_ms,
         })
     }
 

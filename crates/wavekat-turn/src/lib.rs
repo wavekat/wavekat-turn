@@ -64,6 +64,12 @@ pub struct TurnPrediction {
     pub latency_ms: u64,
     /// Per-stage timing breakdown in pipeline order.
     pub stage_times: Vec<StageTiming>,
+    /// Duration of audio in the detector's buffer at prediction time (ms).
+    ///
+    /// For PipecatSmartTurn this reflects how much of the 8 s ring buffer
+    /// was filled. With soft reset the buffer may span multiple speech
+    /// segments, so this can exceed the current segment duration.
+    pub audio_duration_ms: u64,
 }
 
 /// A single turn in the conversation, for context-aware text detectors.
