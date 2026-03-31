@@ -42,11 +42,13 @@ impl AudioTurnDetector for MockDetector {
             TurnState::Unfinished => 0.80,
             TurnState::Wait => 0.70,
         };
+        let audio_duration_ms = (self.buffer_len as u64 * 1000) / 16000;
         Ok(TurnPrediction {
             state,
             confidence,
             latency_ms: 0,
             stage_times: vec![],
+            audio_duration_ms,
         })
     }
 
