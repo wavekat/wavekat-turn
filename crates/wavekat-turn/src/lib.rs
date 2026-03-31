@@ -16,6 +16,7 @@
 //! | `pipecat` | Pipecat Smart Turn v3 (ONNX) | Audio (16 kHz) |
 //! | `livekit` | LiveKit Turn Detector (ONNX) | Text |
 
+pub mod controller;
 pub mod error;
 
 #[cfg(any(feature = "pipecat", feature = "livekit"))]
@@ -27,6 +28,7 @@ pub mod audio;
 #[cfg(feature = "livekit")]
 pub mod text;
 
+pub use controller::TurnController;
 pub use error::TurnError;
 pub use wavekat_core::AudioFrame;
 

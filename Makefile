@@ -1,4 +1,4 @@
-.PHONY: help check test fmt lint doc ci accuracy mel
+.PHONY: help check test fmt lint doc ci accuracy mel example-controller
 
 help:
 	@echo "Available targets:"
@@ -10,6 +10,7 @@ help:
 	@echo "  lint      Run clippy with warnings as errors"
 	@echo "  doc       Build and open docs in browser"
 	@echo "  ci        Run all CI checks locally (fmt, clippy, test, doc, features)"
+	@echo "  example-controller  Run TurnController example"
 
 # Check workspace compiles
 check:
@@ -26,6 +27,10 @@ accuracy:
 # Compare Rust vs Python mel spectrograms element-wise (requires .npy fixtures)
 mel:
 	cargo test --features pipecat -- mel_report --ignored --nocapture
+
+# Run TurnController example
+example-controller:
+	cargo run --features pipecat --example controller
 
 # Format code
 fmt:
