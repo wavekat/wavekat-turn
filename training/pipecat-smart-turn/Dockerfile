@@ -23,6 +23,10 @@ RUN python -m pip install --no-cache-dir --break-system-packages -r requirements
 RUN python -m pip install --no-cache-dir --break-system-packages \
     jupyterlab matplotlib pandas ipywidgets
 
+# FFmpeg for torchcodec audio decoding
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 EXPOSE 8888
 
 # Default: show usage
