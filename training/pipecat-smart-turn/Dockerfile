@@ -19,5 +19,11 @@ RUN git clone https://github.com/pipecat-ai/smart-turn.git .
 # Install Python dependencies
 RUN python -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
+# Jupyter + visualisation deps for notebook exploration
+RUN python -m pip install --no-cache-dir --break-system-packages \
+    jupyterlab matplotlib pandas ipywidgets
+
+EXPOSE 8888
+
 # Default: show usage
 CMD ["python", "train_local.py", "--help"]

@@ -156,7 +156,35 @@ Raw data format for custom contributions:
 - Directory structure: `{language}/{complete|incomplete}-{midfiller|endfiller|nofiller}/{uuid}.flac`
 - Convert raw to HF dataset: `python datasets/scripts/raw_to_hf_dataset.py <base_name> <input_dir> <output_dir> <tmp_dir>`
 
-### 6. Training
+### 6. Dataset Exploration (Notebook)
+
+**Local machine** — copy the notebook to the VM:
+
+```bash
+scp training/pipecat-smart-turn/explore_dataset.ipynb gpu-testing:/checkpoints/explore_dataset.ipynb
+```
+
+**On the VM** — launch JupyterLab:
+
+```bash
+docker run -d --name jupyter \
+  --gpus all --restart unless-stopped \
+  -v /datasets/huggingface:/root/.cache/huggingface \
+  -v /checkpoints:/checkpoints \
+  -p 8888:8888 \
+  smart-turn \
+  jupyter lab \
+    --ip=0.0.0.0 --port=8888 --no-browser --allow-root \
+    --notebook-dir=/checkpoints \
+    --ServerApp.token='' --ServerApp.password=''
+```
+
+Open `http://gpu-testing:8888` in a browser (via Tailscale) and run
+`explore_dataset.ipynb`. The notebook covers label balance, audio durations,
+language/filler/synthetic breakdowns, audio playback, and mel spectrogram
+visualisation.
+
+### 7. Training
 
 ```bash
 docker run --gpus all \
@@ -189,7 +217,7 @@ Optional: set `WANDB_API_KEY` for experiment tracking.
 > **Note:** Batch size 384 requires significant VRAM. With T4 (16 GB) we will
 > likely need to reduce this — experiment with 32–64.
 
-### 7. Quantization
+### 8. Quantization
 
 ```bash
 docker run --gpus all \
@@ -200,7 +228,7 @@ docker run --gpus all \
 
 INT8 static quantization using entropy calibration on 1024 samples.
 
-### 8. Benchmarking
+### 9. Benchmarking
 
 ```bash
 docker run --gpus all \
@@ -211,7 +239,7 @@ docker run --gpus all \
 
 Reference latencies: CPU ~12.6 ms, GPU (L40S) ~3.3 ms.
 
-### 9. Export / Integration
+### 10. Export / Integration
 
 Final artifacts:
 - `smart-turn-v3.onnx` (FP32)
