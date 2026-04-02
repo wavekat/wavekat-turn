@@ -169,8 +169,10 @@ scp training/pipecat-smart-turn/explore_dataset.ipynb gpu-testing:/checkpoints/e
 ```bash
 docker run -d --name jupyter \
   --gpus all --restart unless-stopped \
+  --ipc=host \
   -v /datasets/huggingface:/root/.cache/huggingface \
   -v /checkpoints:/checkpoints \
+  -v /datasets:/datasets \
   -p 8888:8888 \
   smart-turn \
   jupyter lab \
@@ -200,6 +202,7 @@ benchmarking.
 
 ```bash
 docker run --gpus all \
+  --ipc=host \
   -v /datasets/huggingface:/root/.cache/huggingface \
   -v /checkpoints:/checkpoints \
   -e WANDB_API_KEY=${WANDB_API_KEY} \
