@@ -184,7 +184,19 @@ Open `http://gpu-testing:8888` in a browser (via Tailscale) and run
 language/filler/synthetic breakdowns, audio playback, and mel spectrogram
 visualisation.
 
-### 7. Training
+### 7. Training (Notebook)
+
+**Local machine** — copy the training notebook to the VM:
+
+```bash
+scp training/pipecat-smart-turn/train.ipynb gpu-testing:/checkpoints/train.ipynb
+```
+
+Open `http://gpu-testing:8888` in a browser and run `train.ipynb`. The notebook
+covers model init, training, evaluation, ONNX export, INT8 quantization, and
+benchmarking.
+
+#### CLI Alternative
 
 ```bash
 docker run --gpus all \
