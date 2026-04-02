@@ -127,7 +127,7 @@ docker build -t smart-turn -f /checkpoints/Dockerfile.smart-turn /checkpoints
 The Dockerfile lives in this repo at `training/pipecat-smart-turn/Dockerfile`.
 `/checkpoints` and `/datasets` are kept clean as pure data volumes.
 
-### 4. Data Preparation
+### 5. Data Preparation
 
 Upstream datasets (HuggingFace):
 
@@ -136,17 +136,31 @@ Upstream datasets (HuggingFace):
 
 Dataset columns: `audio`, `id`, `language`, `endpoint_bool`, `midfiller`, `endfiller`, `synthetic`, `dataset`
 
+Pre-download the dataset so it persists across container runs:
+
+```bash
+docker run -d \
+  --name smart-turn-download \
+  --gpus all \
+  -v /datasets/huggingface:/root/.cache/huggingface \
+  smart-turn \
+  python -c "from datasets import load_dataset; load_dataset('pipecat-ai/smart-turn-data-v3.2-train')"
+```
+
+The data is cached at `/datasets/huggingface` on the host. All subsequent runs
+must mount this path to `/root/.cache/huggingface` to reuse it.
+
 Raw data format for custom contributions:
 - FLAC files, mono, 16-bit, 16 kHz+
 - Max 16 seconds per file, ~200 ms trailing silence
 - Directory structure: `{language}/{complete|incomplete}-{midfiller|endfiller|nofiller}/{uuid}.flac`
 - Convert raw to HF dataset: `python datasets/scripts/raw_to_hf_dataset.py <base_name> <input_dir> <output_dir> <tmp_dir>`
 
-### 5. Training
+### 6. Training
 
 ```bash
 docker run --gpus all \
-  -v /datasets:/datasets \
+  -v /datasets/huggingface:/root/.cache/huggingface \
   -v /checkpoints:/checkpoints \
   -e WANDB_API_KEY=${WANDB_API_KEY} \
   smart-turn \
@@ -175,7 +189,7 @@ Optional: set `WANDB_API_KEY` for experiment tracking.
 > **Note:** Batch size 384 requires significant VRAM. With T4 (16 GB) we will
 > likely need to reduce this — experiment with 32–64.
 
-### 6. Quantization
+### 7. Quantization
 
 ```bash
 docker run --gpus all \
@@ -186,7 +200,7 @@ docker run --gpus all \
 
 INT8 static quantization using entropy calibration on 1024 samples.
 
-### 7. Benchmarking
+### 8. Benchmarking
 
 ```bash
 docker run --gpus all \
@@ -197,7 +211,7 @@ docker run --gpus all \
 
 Reference latencies: CPU ~12.6 ms, GPU (L40S) ~3.3 ms.
 
-### 8. Export / Integration
+### 9. Export / Integration
 
 Final artifacts:
 - `smart-turn-v3.onnx` (FP32)
