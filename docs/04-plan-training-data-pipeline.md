@@ -83,12 +83,12 @@ The LLM takes each utterance and produces:
 
 ### Model choice
 
-**Qwen2.5-7B-Instruct** (via `vllm` or `transformers`)
+**OpenRouter API** — use any strong Chinese-capable model without local GPU.
 
-- Best-in-class Chinese language support at the 7B scale
-- Apache 2.0 license
-- Runs on a single T4 GPU (16 GB VRAM) with vLLM
-- Quantized (AWQ/GPTQ) variants available if VRAM is tight
+- Access to Qwen, DeepSeek, Gemini, Claude, etc. via a single API
+- No local GPU needed for this step — offload compute to the cloud
+- Pay per token, swap models easily to compare quality
+- Recommended starting model: `qwen/qwen3-235b-a22b` (best Chinese quality)
 
 ### Prompt design
 
@@ -110,14 +110,26 @@ Expected output:
 
 ### Batch processing
 
-Use vLLM for high-throughput offline batch inference:
+Use OpenRouter with async HTTP for throughput:
 
 ```python
-from vllm import LLM, SamplingParams
+import openai
 
-llm = LLM(model="Qwen/Qwen2.5-7B-Instruct")
-params = SamplingParams(temperature=0.7, max_tokens=128)
-outputs = llm.generate(prompts, params)
+client = openai.AsyncOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.environ["OPENROUTER_API_KEY"],
+)
+
+response = await client.chat.completions.create(
+    model="qwen/qwen3-235b-a22b",
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": utterance},
+    ],
+    response_format={"type": "json_object"},
+    temperature=0.7,
+    max_tokens=128,
+)
 ```
 
 ### Filtering
@@ -133,30 +145,53 @@ Post-generation quality checks:
 
 ### Model choice
 
-**CosyVoice 2** (Alibaba, `FunAudioLLM/CosyVoice2-0.5B`)
+**Qwen3-TTS VoiceDesign** (`Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign`)
 
 - Apache 2.0 license
-- Best open-source Chinese conversational TTS quality
-- Supports multi-speaker with voice cloning (zero-shot)
-- Streaming-capable, but we use offline batch mode here
+- 1.7B params, ~8 GB VRAM (bfloat16)
+- **Voice design from natural language** — describe any voice persona in text
+  (age, gender, tone, emotion, speaking style) and the model creates it
+- No preset speakers or reference audio needed — unlimited speaker diversity
+- Runs on T4 (16 GB VRAM)
 
-Alternatives considered:
-- **ChatTTS** — good quality but license is restrictive (CC-BY-NC 4.0)
-- **Fish Speech** — good but less mature
-- **MeloTTS** — fast but less natural prosody
+### Voice design for speaker diversity + turn labels
 
-### Speaker diversity
+VoiceDesign takes a `voice_description` that defines the speaker persona, plus
+an `instruct` that controls per-utterance prosody. This gives us two levers:
 
-To avoid the model learning to detect turns by speaker voice rather than
-linguistic content, we need speaker diversity:
+1. **`voice_description`** — defines who is speaking (generated once per speaker)
+2. **`instruct`** — defines how they speak this particular utterance (per sample)
 
-- Use 10-20 reference voice clips (mix of male/female, age ranges)
-- Randomly assign a speaker to each sample
-- Track speaker ID in metadata for analysis
+#### Speaker personas
+
+Pre-generate a pool of ~20 voice descriptions covering diverse demographics:
+
+```python
+VOICE_POOL = [
+    "年轻女性，声音清亮活泼，语速偏快",
+    "中年男性，声音低沉稳重，语速适中",
+    "年轻男性，声音明朗有活力，略带磁性",
+    "中年女性，声音温柔沉稳，语调平和",
+    "老年男性，声音沙哑浑厚，语速较慢",
+    # ... more variations
+]
+```
+
+Randomly assign a voice to each sample; track voice ID in metadata.
+
+#### Prosody instruct per label
+
+| Label        | TTS instruct                                   | Effect                         |
+|--------------|-------------------------------------------------|--------------------------------|
+| **complete** | `"用自然平稳的语气说完整句话，句尾语调下降。"`       | Declarative falling intonation |
+| incomplete   | `"说到一半停下来，语气未完，像是还想继续说。"`       | Rising/suspended intonation    |
+
+The combination of voice_description + instruct makes synthesized audio more
+realistic: diverse speakers with prosody that matches complete vs. incomplete.
 
 ### Audio format
 
-- **Sample rate:** 16 kHz (matches Whisper input)
+- **Sample rate:** 16 kHz (matches Whisper input, resample from TTS native rate)
 - **Channels:** mono
 - **Bit depth:** 16-bit PCM
 - **Format:** WAV
@@ -166,18 +201,35 @@ linguistic content, we need speaker diversity:
 ### Batch processing
 
 ```python
-from cosyvoice import CosyVoice2
+from qwen_tts import Qwen3TTSModel
+import torch
+import soundfile as sf
 
-model = CosyVoice2("FunAudioLLM/CosyVoice2-0.5B")
+model = Qwen3TTSModel.from_pretrained(
+    "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+    device_map="cuda:0",
+    dtype=torch.bfloat16,
+)
 
-for sample in dataset:
-    # zero-shot with random reference speaker
-    audio = model.inference_zero_shot(
-        sample["text"],
-        prompt_text=speaker["prompt_text"],
-        prompt_speech=speaker["prompt_audio"],
-    )
-    save_wav(audio, sample["output_path"], sr=16000)
+voice = "年轻女性，声音清亮活泼，语速偏快"
+
+# Complete sample — falling intonation
+wavs, sr = model.generate_voice_design(
+    text=sample["complete"],
+    language="Chinese",
+    voice_description=voice,
+    instruct="用自然平稳的语气说完整句话，句尾语调下降。",
+)
+sf.write("complete.wav", wavs[0], sr)
+
+# Incomplete sample — suspended intonation
+wavs, sr = model.generate_voice_design(
+    text=sample["incomplete"],
+    language="Chinese",
+    voice_description=voice,
+    instruct="说到一半停下来，语气未完，像是还想继续说。",
+)
+sf.write("incomplete.wav", wavs[0], sr)
 ```
 
 ## 5. Output Format
@@ -214,12 +266,12 @@ Each split gets a `metadata.jsonl` with one line per sample:
 
 ## 6. Pipeline Steps (Execution Order)
 
-| Step | Script               | Input                  | Output                 | GPU? |
-|------|----------------------|------------------------|------------------------|------|
-| 1    | `01_split_lccc.py`   | LCCC-base from HF      | `splits/{train,eval,test}.jsonl` | No |
-| 2    | `02_generate_text.py`| `splits/*.jsonl`        | `text/{split}.jsonl` with complete/incomplete | Yes |
-| 3    | `03_synthesize.py`   | `text/*.jsonl` + speaker refs | `audio/{split}/zh/{label}/*.wav` | Yes |
-| 4    | `04_build_dataset.py`| `audio/` tree           | HuggingFace Dataset (Arrow) | No |
+| Step | Script               | Input                  | Output                 | Compute |
+|------|----------------------|------------------------|------------------------|---------|
+| 1    | `01_split_lccc.py`   | LCCC-base from HF      | `splits/{train,eval,test}.jsonl` | CPU |
+| 2    | `02_generate_text.py`| `splits/*.jsonl`        | `text/{split}.jsonl` with complete/incomplete | OpenRouter API |
+| 3    | `03_synthesize.py`   | `text/*.jsonl`          | `audio/{split}/zh/{label}/*.wav` | GPU (Qwen3-TTS) |
+| 4    | `04_build_dataset.py`| `audio/` tree           | HuggingFace Dataset (Arrow) | CPU |
 
 Each step is idempotent — it checks for existing outputs and skips them,
 so you can resume after failures.
@@ -245,6 +297,9 @@ We can scale to full 500K conversations (~4M samples) once quality is validated.
       Upstream data has `midfiller` and `endfiller` labels.
 - [ ] Do we want to add background noise augmentation, or keep it clean and
       let training handle augmentation?
-- [ ] How many reference speakers are enough for good diversity?
-- [ ] Should we use Qwen2.5-7B or a larger model (14B/72B) for better
-      text generation quality? Depends on available VRAM and time budget.
+- [ ] How many voice descriptions should we pre-generate for the VoiceDesign
+      speaker pool? Starting with ~20, but more may help generalization.
+- [ ] Which OpenRouter model gives the best cost/quality tradeoff for text
+      generation? Start with Qwen3-235B, compare with cheaper alternatives.
+- [ ] Should we vary the TTS `instruct` prompts per sample (e.g., different
+      emotions) or keep them consistent per label?
