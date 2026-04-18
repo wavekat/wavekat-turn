@@ -79,9 +79,23 @@ The LLM takes each utterance and produces:
    make it sound natural when spoken aloud (remove internet slang, add proper
    sentence-final particles like 啊/吧/呢). Plus a TTS instruct describing
    the speaking style for a completed turn.
-2. **Incomplete version** — a natural truncation: cut mid-clause, trail off,
-   or pause at a point where the speaker clearly has more to say. Plus a TTS
-   instruct describing the speaking style for an interrupted/unfinished turn.
+2. **Incomplete version** — must simulate how real incomplete turns sound in
+   conversation. Plus a TTS instruct describing the speaking style.
+
+### Incomplete turn patterns
+
+The incomplete version should randomly follow one of these real-world patterns:
+
+| Pattern              | Example                        | Description                              |
+|----------------------|--------------------------------|------------------------------------------|
+| **Mid-clause cut**   | `"我觉得这个..."`               | Stops between words/clauses              |
+| **Filler trailing**  | `"嗯...那个...就是说..."`        | Thinking aloud with filler words          |
+| **Compound break**   | `"我先去买菜，然后..."`          | Finishes one clause but clearly has more  |
+| **Self-correction**  | `"我想...不对，我是说..."`       | Restarts mid-thought                     |
+| **Interrupted**      | `"你能不能帮我把那个——"`         | Cut off abruptly by another speaker       |
+
+Filler words (嗯, 啊, 那个, 就是) are a natural part of incomplete turns and
+should be included in the generated text, not treated as a separate category.
 
 TTS instructs must be in **English** (Qwen3-TTS instruct language).
 Text content must be in **Chinese** (target language).
@@ -105,9 +119,14 @@ System prompt:
 > 1. **complete**: A natural, spoken-style complete sentence in Chinese, plus
 >    a short English TTS instruction describing how a speaker would say a
 >    finished thought (e.g. tone, intonation, emotion).
-> 2. **incomplete**: A naturally truncated version of the sentence in Chinese
->    (cut mid-clause, trail off), plus a short English TTS instruction
->    describing how a speaker would sound when interrupted or still thinking.
+> 2. **incomplete**: A realistically incomplete version of the sentence in
+>    Chinese. Randomly pick one of these patterns:
+>    - Mid-clause cut: stop between words/clauses ("我觉得这个...")
+>    - Filler trailing: think aloud with fillers ("嗯...那个...就是说...")
+>    - Compound break: finish one clause but have more ("我先去买菜，然后...")
+>    - Self-correction: restart mid-thought ("我想...不对，我是说...")
+>    - Interrupted: cut off abruptly ("你能不能帮我把那个——")
+>    Plus a short English TTS instruction matching the chosen pattern.
 >
 > Output JSON only, no explanation. The `text` fields must be Chinese.
 > The `tts_instruct` fields must be English.
@@ -312,15 +331,12 @@ Starting conservative, can scale up later:
 For comparison, upstream Smart Turn v3.2 uses 270K samples (~41 GB).
 We can scale to full 500K conversations (~4M samples) once quality is validated.
 
-## 8. Open Questions
+## 8. Decisions
 
-- [ ] Should we include filler words (嗯, 啊, 那个) as a separate category?
-      Upstream data has `midfiller` and `endfiller` labels.
-- [ ] Do we want to add background noise augmentation, or keep it clean and
-      let training handle augmentation?
-- [ ] How many voice descriptions should we pre-generate for the VoiceDesign
-      speaker pool? Starting with ~20, but more may help generalization.
-- [ ] Which OpenRouter model gives the best cost/quality tradeoff for text
-      generation? Start with Qwen3-235B, compare with cheaper alternatives.
-- [ ] Should we add guardrails on the LLM-generated TTS instructs (e.g., max
-      length, banned keywords) to keep them within Qwen3-TTS's capabilities?
+- **Fillers** — not a separate category. Filler words (嗯, 啊, 那个) are a
+  natural part of incomplete turns and are included in the generated text.
+- **Background noise** — no augmentation in this pipeline. Keep audio clean;
+  augmentation is handled during training.
+- **Voice pool size** — 20 voice descriptions for the VoiceDesign speaker pool.
+- **OpenRouter model** — start with `qwen/qwen3-235b-a22b`, iterate as needed.
+- **TTS instruct guardrails** — iterate on quality; no upfront constraints.
