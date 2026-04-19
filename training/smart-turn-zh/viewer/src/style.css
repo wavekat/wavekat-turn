@@ -131,6 +131,27 @@ button:disabled {
   max-height: 120px;
 }
 
+.scale-toggle {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  z-index: 1;
+}
+
+.scale-btn {
+  padding: 2px 6px !important;
+  font-size: 10px !important;
+  border-radius: 3px !important;
+  opacity: 0.5;
+}
+
+.scale-btn.active {
+  opacity: 1;
+  background: #3a3a5a !important;
+}
+
 #vad-thresholds {
   position: absolute;
   top: 4px;
@@ -246,11 +267,24 @@ button:disabled {
   word-break: break-all;
 }
 
-.sentence mark {
+.sentence .txt .char {
+  cursor: pointer;
+  border-radius: 1px;
+  transition: background 0.1s;
+}
+
+.sentence .txt .char:hover {
+  background: rgba(79, 195, 247, 0.25);
+}
+
+.sentence .txt .char-active {
+  background: rgba(255, 152, 0, 0.55) !important;
+  color: #fff;
+}
+
+.sentence .txt .search-hl {
   background: rgba(255, 235, 59, 0.4);
-  color: inherit;
   border-radius: 2px;
-  padding: 0 1px;
 }
 
 /* ---- Drop overlay ---- */

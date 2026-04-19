@@ -1,8 +1,11 @@
 import type { Timeline } from './timeline';
 import type { AudioStore } from './audio';
 
+export type WaveformScale = 'linear' | 'dB';
+
 export class WaveformRenderer {
   channel = -1; // -1 = merged all channels
+  scale: WaveformScale = 'linear';
   private ctx: CanvasRenderingContext2D;
 
   constructor(
@@ -61,6 +64,19 @@ export class WaveformRenderer {
     }
   }
 
+  /** Map a linear amplitude [-1,1] to vertical position. */
+  private mapY(v: number, mid: number, amp: number): number {
+    if (this.scale === 'dB') {
+      const sign = v < 0 ? -1 : 1;
+      const abs = Math.abs(v);
+      // -60 dB floor, map to 0..1
+      const db = abs > 1e-6 ? 20 * Math.log10(abs) : -60;
+      const norm = Math.max(0, (db + 60) / 60); // 0 at -60dB, 1 at 0dB
+      return mid - sign * norm * amp;
+    }
+    return mid - v * amp;
+  }
+
   private drawRaw(w: number, h: number, s0: number, s1: number) {
     const { ctx, audio } = this;
     const mid = h / 2, amp = mid * 0.95;
@@ -69,7 +85,7 @@ export class WaveformRenderer {
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
       const idx = s0 + Math.round((x / w) * (s1 - s0));
-      const y = mid - audio.sample(idx, this.channel) * amp;
+      const y = this.mapY(audio.sample(idx, this.channel), mid, amp);
       x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.stroke();
@@ -102,7 +118,8 @@ export class WaveformRenderer {
       let hi = -Infinity;
       for (let b = b0; b < b1; b++) if (lv.max[b] > hi) hi = lv.max[b];
       if (!isFinite(hi)) hi = 0;
-      x === 0 ? ctx.moveTo(x, mid - hi * amp) : ctx.lineTo(x, mid - hi * amp);
+      const y = this.mapY(hi, mid, amp);
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     // Backward pass: min envelope
     for (let x = w - 1; x >= 0; x--) {
@@ -113,7 +130,7 @@ export class WaveformRenderer {
       let lo = Infinity;
       for (let b = b0; b < b1; b++) if (lv.min[b] < lo) lo = lv.min[b];
       if (!isFinite(lo)) lo = 0;
-      ctx.lineTo(x, mid - lo * amp);
+      ctx.lineTo(x, this.mapY(lo, mid, amp));
     }
     ctx.closePath();
     ctx.fill();

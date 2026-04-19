@@ -1,6 +1,6 @@
 import { Timeline } from './timeline';
 import { AudioStore } from './audio';
-import { WaveformRenderer } from './waveform';
+import { WaveformRenderer, type WaveformScale } from './waveform';
 import { VADRenderer } from './vad';
 import { ASRPanel } from './asr';
 import './style.css';
@@ -14,9 +14,7 @@ const audio = new AudioStore();
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const wavInput = $<HTMLInputElement>('wav-input');
-const vadInput = $<HTMLInputElement>('vad-input');
-const asrInput = $<HTMLInputElement>('asr-input');
+const multiInput = $<HTMLInputElement>('multi-input');
 const wavStatus = $('wav-status');
 const vadStatus = $('vad-status');
 const asrStatus = $('asr-status');
@@ -111,9 +109,15 @@ function rafLoop() {
 
 // --- File loading ---
 
-wavInput.onchange = () => wavInput.files?.[0] && loadWav(wavInput.files[0]);
-vadInput.onchange = () => vadInput.files?.[0] && loadVad(vadInput.files[0]);
-asrInput.onchange = () => asrInput.files?.[0] && loadAsr(asrInput.files[0]);
+multiInput.onchange = () => {
+  for (const f of multiInput.files ?? []) routeFile(f);
+};
+
+function routeFile(f: File) {
+  if (f.name.endsWith('.wav')) loadWav(f);
+  else if (f.name.endsWith('.npy')) loadVad(f);
+  else if (f.name.endsWith('.json')) loadAsr(f);
+}
 
 async function loadWav(f: File) {
   wavStatus.textContent = '...';
@@ -168,11 +172,7 @@ dropEl.ondragleave = () => { dropEl.hidden = true; };
 document.ondrop = (e) => {
   e.preventDefault();
   dropEl.hidden = true;
-  for (const f of e.dataTransfer?.files ?? []) {
-    if (f.name.endsWith('.wav')) loadWav(f);
-    else if (f.name.endsWith('.npy')) loadVad(f);
-    else if (f.name.endsWith('.json')) loadAsr(f);
-  }
+  for (const f of e.dataTransfer?.files ?? []) routeFile(f);
 };
 
 // --- Controls ---
@@ -188,17 +188,35 @@ playBtn.onclick = () => playing ? stop() : play(tl.cursor);
 vadEntry.oninput = () => { vad.entryThreshold = +vadEntry.value; renderAll(); };
 vadExit.oninput = () => { vad.exitThreshold = +vadExit.value; renderAll(); };
 
+// Waveform scale toggle
+$('wf-scale').onclick = (e) => {
+  const btn = (e.target as HTMLElement).closest('.scale-btn') as HTMLElement | null;
+  if (!btn) return;
+  wf.scale = btn.dataset.scale as WaveformScale;
+  for (const b of $('wf-scale').querySelectorAll('.scale-btn')) b.classList.remove('active');
+  btn.classList.add('active');
+  renderAll();
+};
+
 searchIn.oninput = () => { asr.search(searchIn.value); renderAll(); };
 prevBtn.onclick = () => { asr.prev(); renderAll(); };
 nextBtn.onclick = () => { asr.next(); renderAll(); };
 
-// ASR sentence click to seek
+// ASR click to seek (character-level or sentence-level)
 $('transcript-list').onclick = (e) => {
   const el = (e.target as HTMLElement).closest('.sentence') as HTMLElement | null;
   if (!el) return;
-  const t = +el.dataset.start! / 1000;
+  const sentIdx = +el.dataset.idx!;
+
+  // Character click: seek to that character's time
+  const charEl = (e.target as HTMLElement).closest('.char') as HTMLElement | null;
+  const t = charEl ? +charEl.dataset.cs! / 1000 : +el.dataset.start! / 1000;
+
+  // Zoom to fit the sentence
+  asr.zoomToSentence(sentIdx);
   tl.setCursor(t);
   if (playing) { stop(); play(t); }
+  renderAll();
 };
 
 // --- Canvas interaction (pan / zoom / seek) ---
@@ -206,9 +224,16 @@ $('transcript-list').onclick = (e) => {
 for (const cvs of [wfCanvas, vadCanvas]) {
   cvs.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const rect = cvs.getBoundingClientRect();
-    const frac = (e.clientX - rect.left) / rect.width;
-    tl.zoom(e.deltaY > 0 ? 1.25 : 0.8, frac);
+    if (e.metaKey || e.ctrlKey) {
+      // Cmd/Ctrl + scroll = zoom
+      const rect = cvs.getBoundingClientRect();
+      const frac = (e.clientX - rect.left) / rect.width;
+      tl.zoom(e.deltaY > 0 ? 1.25 : 0.8, frac);
+    } else {
+      // Plain scroll = horizontal pan
+      const span = tl.viewEnd - tl.viewStart;
+      tl.pan((e.deltaY > 0 ? 0.15 : -0.15) * span);
+    }
   }, { passive: false });
 
   let drag = false, startX = 0, startVS = 0, moved = false;
@@ -303,15 +328,19 @@ function renderAll() {
   vad.render();
   renderMinimap();
 
-  // ASR search overlay on waveform canvas
-  if (asr.results.length) {
+  // ASR overlays on waveform canvas
+  if (asr.sentences.length) {
     const dpr = devicePixelRatio;
     const w = wfCanvas.width / dpr;
     const h = wfCanvas.height / dpr;
     const ctx = wfCanvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    asr.drawOverlay(ctx, w, h);
+    if (asr.results.length) asr.drawOverlay(ctx, w, h);
+    asr.drawLabels(ctx, w, h);
   }
+
+  // Karaoke highlight
+  asr.highlightAt(tl.cursor * 1000);
 
   timeDisp.textContent = `${fmt(tl.cursor)} / ${fmt(tl.duration)}`;
 }
