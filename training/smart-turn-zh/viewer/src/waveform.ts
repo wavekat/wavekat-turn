@@ -1,0 +1,121 @@
+import type { Timeline } from './timeline';
+import type { AudioStore } from './audio';
+
+export class WaveformRenderer {
+  channel = -1; // -1 = merged all channels
+  private ctx: CanvasRenderingContext2D;
+
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private tl: Timeline,
+    private audio: AudioStore,
+  ) {
+    this.ctx = canvas.getContext('2d')!;
+  }
+
+  resize() {
+    const dpr = devicePixelRatio;
+    const rect = this.canvas.getBoundingClientRect();
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+  }
+
+  render() {
+    if (!this.audio.raw) return;
+    const { ctx, canvas, tl, audio } = this;
+    const dpr = devicePixelRatio;
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    // Center line
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+
+    const sr = audio.sampleRate;
+    const s0 = Math.floor(tl.viewStart * sr);
+    const s1 = Math.ceil(tl.viewEnd * sr);
+    const spp = (s1 - s0) / w; // samples per pixel
+
+    if (spp <= 1) {
+      this.drawRaw(w, h, s0, s1);
+    } else {
+      this.drawLOD(w, h, s0, s1, spp);
+    }
+
+    // Playback cursor
+    const cx = tl.timeToX(tl.cursor, w);
+    if (cx >= 0 && cx <= w) {
+      ctx.strokeStyle = '#ff5722';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, 0);
+      ctx.lineTo(cx, h);
+      ctx.stroke();
+    }
+  }
+
+  private drawRaw(w: number, h: number, s0: number, s1: number) {
+    const { ctx, audio } = this;
+    const mid = h / 2, amp = mid * 0.95;
+    ctx.strokeStyle = '#4fc3f7';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < w; x++) {
+      const idx = s0 + Math.round((x / w) * (s1 - s0));
+      const y = mid - audio.sample(idx, this.channel) * amp;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  private drawLOD(w: number, h: number, s0: number, s1: number, spp: number) {
+    const levels = this.audio.getLOD(this.channel);
+    if (!levels.length) return;
+
+    // Pick level where bucketSize <= samplesPerPixel
+    let lv = levels[0];
+    for (const l of levels) {
+      if (l.bucketSize <= spp) lv = l;
+      else break;
+    }
+
+    const { ctx } = this;
+    const mid = h / 2, amp = mid * 0.95;
+    const span = s1 - s0;
+
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath();
+
+    // Forward pass: max envelope
+    for (let x = 0; x < w; x++) {
+      const ss = s0 + (x / w) * span;
+      const se = ss + span / w;
+      const b0 = Math.max(0, Math.floor(ss / lv.bucketSize));
+      const b1 = Math.min(Math.ceil(se / lv.bucketSize), lv.max.length);
+      let hi = -Infinity;
+      for (let b = b0; b < b1; b++) if (lv.max[b] > hi) hi = lv.max[b];
+      if (!isFinite(hi)) hi = 0;
+      x === 0 ? ctx.moveTo(x, mid - hi * amp) : ctx.lineTo(x, mid - hi * amp);
+    }
+    // Backward pass: min envelope
+    for (let x = w - 1; x >= 0; x--) {
+      const ss = s0 + (x / w) * span;
+      const se = ss + span / w;
+      const b0 = Math.max(0, Math.floor(ss / lv.bucketSize));
+      const b1 = Math.min(Math.ceil(se / lv.bucketSize), lv.min.length);
+      let lo = Infinity;
+      for (let b = b0; b < b1; b++) if (lv.min[b] < lo) lo = lv.min[b];
+      if (!isFinite(lo)) lo = 0;
+      ctx.lineTo(x, mid - lo * amp);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+}

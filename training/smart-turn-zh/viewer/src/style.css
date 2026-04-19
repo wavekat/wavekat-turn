@@ -1,0 +1,288 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ---- Toolbar ---- */
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #16213e;
+  border-bottom: 1px solid #2a2a4a;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+#file-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #2a2a4a;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+}
+
+.file-btn:hover {
+  background: #3a3a5a;
+}
+
+.status {
+  color: #888;
+  font-size: 11px;
+  min-width: 12px;
+  text-align: center;
+}
+
+#playback-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+select,
+button,
+input[type='number'] {
+  background: #2a2a4a;
+  color: #e0e0e0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #3a3a5a;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#time-display {
+  font-family: monospace;
+  font-size: 13px;
+  color: #aaa;
+  min-width: 120px;
+}
+
+/* ---- Tracks ---- */
+
+#tracks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  min-height: 80px;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.track-label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  font-size: 10px;
+  color: #555;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.track canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+
+#vad-track {
+  max-height: 120px;
+}
+
+#vad-thresholds {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  z-index: 1;
+}
+
+#vad-thresholds label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #888;
+}
+
+#vad-thresholds input[type='number'] {
+  width: 50px;
+  padding: 2px 4px;
+  font-size: 10px;
+}
+
+/* ---- Minimap ---- */
+
+#minimap-canvas {
+  width: 100%;
+  height: 30px;
+  display: block;
+  cursor: pointer;
+  background: #0f0f23;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+/* ---- ASR Panel ---- */
+
+#asr-panel {
+  display: flex;
+  flex-direction: column;
+  height: 220px;
+  flex-shrink: 0;
+}
+
+#search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #16213e;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+#search-input {
+  flex: 1;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  outline: none;
+}
+
+#search-input:focus {
+  border-color: #4fc3f7;
+}
+
+#search-count {
+  font-size: 11px;
+  color: #888;
+  min-width: 60px;
+  text-align: center;
+}
+
+#transcript-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.sentence {
+  padding: 3px 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.sentence:hover {
+  background: rgba(79, 195, 247, 0.08);
+}
+
+.sentence.match {
+  background: rgba(255, 235, 59, 0.08);
+}
+
+.sentence.current {
+  background: rgba(255, 152, 0, 0.15);
+}
+
+.sentence .time {
+  color: #666;
+  font-family: monospace;
+  font-size: 11px;
+  flex-shrink: 0;
+  min-width: 55px;
+  padding-top: 1px;
+}
+
+.sentence .txt {
+  word-break: break-all;
+}
+
+.sentence mark {
+  background: rgba(255, 235, 59, 0.4);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ---- Drop overlay ---- */
+
+#drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(79, 195, 247, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #4fc3f7;
+  z-index: 100;
+  pointer-events: none;
+}
+
+#drop-overlay[hidden] {
+  display: none;
+}
+
+/* ---- Scrollbar ---- */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3a3a5a;
+  border-radius: 3px;
+}
