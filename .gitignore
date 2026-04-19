@@ -21,5 +21,6 @@ __pycache__/
 # Training venvs
 training/**/.venv/
 
-# Training data WAV files
+# Training data
 training/smart-turn-zh/data/wav/*.wav
+training/smart-turn-zh/data/asr_results.jsonl
