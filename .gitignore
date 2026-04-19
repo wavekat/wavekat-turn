@@ -23,4 +23,7 @@ training/**/.venv/
 
 # Training data
 training/smart-turn-zh/data/wav/*.wav
-training/smart-turn-zh/data/asr_results.jsonl
+training/smart-turn-zh/data/*.jsonl
+
+# Training references
+training/smart-turn-zh/refs/*.pdf
