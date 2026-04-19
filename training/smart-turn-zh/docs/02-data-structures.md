@@ -9,7 +9,9 @@ data/
 ├── wav/                          # Source audio
 │   ├── R8001_M8004_MS801.wav     # 8-ch, 16 kHz, PCM-16
 │   └── R8003_M8001_MS801.wav
-├── asr_results.jsonl             # ASR transcriptions (all files)
+├── asr_results/                  # Per-file ASR transcriptions
+│   ├── R8001_M8004_MS801.json
+│   └── R8003_M8001_MS801.json
 └── vad_probs/                    # Per-frame speech probabilities
     ├── R8001_M8004_MS801.npy
     └── R8003_M8001_MS801.npy
@@ -24,20 +26,23 @@ data/
 | Sample rate | 16 kHz                         |
 | Source      | AliMeeting (SLR-119) meetings  |
 
-## ASR Results (`data/asr_results.jsonl`)
+## ASR Results (`data/asr_results/*.json`)
 
-**Format**: JSONL — one JSON object per line.
+**Format**: JSON — one file per WAV, named `{wav_stem}.json`.
 **Producer**: `notebooks/01-asr-transcribe.ipynb` (Paraformer-zh + FSMN-VAD + ct-punc).
 
-### Record Schema
+### File Schema
+
+Each file contains a JSON array of record objects:
 
 ```jsonc
-{
-  "file": "R8001_M8004_MS801.wav",   // source filename
-  "text": "全文转写结果...",            // full transcription (punctuated)
-  "sentences": [ /* see below */ ],
-  "timestamp": [ /* see below */ ]
-}
+[
+  {
+    "text": "全文转写结果...",            // full transcription (punctuated)
+    "sentences": [ /* see below */ ],
+    "timestamp": [ /* see below */ ]
+  }
+]
 ```
 
 ### `sentences` Array Element
