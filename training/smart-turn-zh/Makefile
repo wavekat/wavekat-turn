@@ -2,11 +2,12 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: help venv notebook clean
+.PHONY: help venv install notebook clean
 
 help:
 	@echo "Available targets:"
 	@echo "  venv       Create virtualenv and install dependencies"
+	@echo "  install    Re-install dependencies into existing venv"
 	@echo "  notebook   Launch Jupyter notebook server"
 	@echo "  clean      Remove virtualenv"
 
@@ -17,6 +18,9 @@ $(VENV)/bin/activate: requirements.txt
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
 	touch $(VENV)/bin/activate
+
+install: venv
+	$(PIP) install -r requirements.txt
 
 notebook: venv
 	$(VENV)/bin/jupyter lab notebooks/
