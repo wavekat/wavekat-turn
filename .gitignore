@@ -14,3 +14,12 @@ __pycache__/
 
 # Generated mel reference tensors (regenerate with scripts/gen_reference.py)
 *.mel.npy
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Training venvs
+training/**/.venv/
+
+# Training data WAV files
+training/smart-turn-zh/data/wav/*.wav

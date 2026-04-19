@@ -1,0 +1,6 @@
+torch
+torchaudio
+funasr
+modelscope
+soundfile
+jupyterlab
