@@ -7,6 +7,7 @@ const SHORTCUTS = [
   { key: '+ / −', desc: 'Zoom in / out' },
   { key: '← / →', desc: 'Pan left / right' },
   { key: '[ / ]', desc: 'Previous / next VAD block' },
+  { key: '{ / }', desc: 'Previous / next ASR sentence' },
   { key: 'Shift + drag', desc: 'Select loop range' },
   { key: '0', desc: 'All channels' },
   { key: '1–9', desc: 'Select channel' },

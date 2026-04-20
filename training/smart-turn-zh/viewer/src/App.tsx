@@ -348,6 +348,34 @@ export function App() {
           }
           break;
         }
+        case '{': {
+          const sents = sentencesRef.current;
+          const cursorMs = tl.cursor * 1000;
+          for (let i = sents.length - 1; i >= 0; i--) {
+            if (sents[i].start < cursorMs - 1) {
+              const t = sents[i].start / 1000;
+              handleSeek(t);
+              const span = tl.viewEnd - tl.viewStart;
+              tl.setView(t - span * 0.2, t - span * 0.2 + span);
+              break;
+            }
+          }
+          break;
+        }
+        case '}': {
+          const sents = sentencesRef.current;
+          const cursorMs = tl.cursor * 1000;
+          for (let i = 0; i < sents.length; i++) {
+            if (sents[i].start > cursorMs + 1) {
+              const t = sents[i].start / 1000;
+              handleSeek(t);
+              const span = tl.viewEnd - tl.viewStart;
+              tl.setView(t - span * 0.2, t - span * 0.2 + span);
+              break;
+            }
+          }
+          break;
+        }
         case '?':
           setShowShortcuts(v => !v);
           break;
