@@ -66,6 +66,8 @@ export class WaveformRenderer {
 
     if (spp <= 1) {
       this.drawRaw(w, h, s0, s1);
+    } else if (spp <= 512) {
+      this.drawDirect(w, h, s0, s1);
     } else {
       this.drawLOD(w, h, s0, s1, spp);
     }
@@ -104,6 +106,40 @@ export class WaveformRenderer {
       x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.stroke();
+  }
+
+  private drawDirect(w: number, h: number, s0: number, s1: number) {
+    const { ctx, audio } = this;
+    const mid = h / 2, amp = mid * 0.95;
+    const span = s1 - s0;
+
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath();
+
+    const mins = new Float32Array(w);
+    const maxs = new Float32Array(w);
+    for (let x = 0; x < w; x++) {
+      const start = s0 + Math.floor((x / w) * span);
+      const end = s0 + Math.floor(((x + 1) / w) * span);
+      let lo = Infinity, hi = -Infinity;
+      for (let i = start; i < end; i++) {
+        const v = audio.sample(i, this.channel);
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      mins[x] = isFinite(lo) ? lo : 0;
+      maxs[x] = isFinite(hi) ? hi : 0;
+    }
+
+    for (let x = 0; x < w; x++) {
+      const y = this.mapY(maxs[x], mid, amp);
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    for (let x = w - 1; x >= 0; x--) {
+      ctx.lineTo(x, this.mapY(mins[x], mid, amp));
+    }
+    ctx.closePath();
+    ctx.fill();
   }
 
   private drawLOD(w: number, h: number, s0: number, s1: number, spp: number) {

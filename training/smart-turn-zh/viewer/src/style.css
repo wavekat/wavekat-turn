@@ -192,6 +192,13 @@ button:disabled {
   min-width: 120px;
 }
 
+#view-span {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+  min-width: 40px;
+}
+
 /* ---- Main area (tracks + ASR side panel) ---- */
 
 #main-area {

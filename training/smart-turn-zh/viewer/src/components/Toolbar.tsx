@@ -35,6 +35,7 @@ export const Toolbar = memo(function Toolbar({
   gainValue, onGainChange,
 }: ToolbarProps) {
   const timeRef = useRef<HTMLSpanElement>(null);
+  const spanRef = useRef<HTMLSpanElement>(null);
   const [activeZoom, setActiveZoom] = useState<number | null>(null);
 
   // Update time display imperatively (60fps during playback)
@@ -42,6 +43,13 @@ export const Toolbar = memo(function Toolbar({
     const update = () => {
       if (timeRef.current) {
         timeRef.current.textContent = `${fmtTime(timeline.cursor)} / ${fmtTime(timeline.duration)}`;
+      }
+      if (spanRef.current) {
+        const s = timeline.viewEnd - timeline.viewStart;
+        spanRef.current.textContent = s < 1 ? `${(s * 1000) | 0}ms`
+          : s < 60 ? `${s.toFixed(1)}s`
+          : s < 3600 ? `${(s / 60).toFixed(1)}m`
+          : `${(s / 3600).toFixed(1)}h`;
       }
     };
     update();
@@ -99,6 +107,8 @@ export const Toolbar = memo(function Toolbar({
             {z.label}
           </button>
         ))}
+        <span className="zoom-sep" />
+        <span id="view-span">view <span ref={spanRef} /></span>
       </div>
       <div id="playback-controls">
         <select
