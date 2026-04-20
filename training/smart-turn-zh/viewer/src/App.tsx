@@ -6,6 +6,7 @@ import {
   type Sentence,
   parseSentences, searchSentences, zoomToSentence,
 } from './lib/asr';
+import { parseNpy, findVADBlocks, nextVADBlock, prevVADBlock } from './lib/vad';
 import { Toolbar } from './components/Toolbar';
 import { WaveformTrack } from './components/WaveformTrack';
 import { VADTrack } from './components/VADTrack';
@@ -13,6 +14,7 @@ import { SpectrogramTrack } from './components/SpectrogramTrack';
 import { ResizeHandle } from './components/ResizeHandle';
 import { Minimap } from './components/Minimap';
 import { ASRPanel } from './components/ASRPanel';
+import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { usePlayback } from './hooks/usePlayback';
 
 export function App() {
@@ -32,7 +34,7 @@ export function App() {
   const [gainValue, setGainValue] = useState(10.0);
 
   // VAD state
-  const [vadBuffer, setVadBuffer] = useState<ArrayBuffer | null>(null);
+  const [vadProbs, setVadProbs] = useState<Float32Array | null>(null);
   const [vadEntry, setVadEntry] = useState(0.3);
   const [vadExit, setVadExit] = useState(0.1);
 
@@ -44,6 +46,9 @@ export function App() {
 
   // Drop overlay
   const [showDrop, setShowDrop] = useState(false);
+
+  // Shortcuts dialog
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // ---- Layout persistence & resize handlers ----
 
@@ -134,6 +139,14 @@ export function App() {
   searchResultsRef.current = searchResults;
   searchIdxRef.current = searchIdx;
 
+  // VAD refs for keyboard nav
+  const vadProbsRef = useRef(vadProbs);
+  const vadEntryRef = useRef(vadEntry);
+  const vadExitRef = useRef(vadExit);
+  vadProbsRef.current = vadProbs;
+  vadEntryRef.current = vadEntry;
+  vadExitRef.current = vadExit;
+
   // ---- Handlers ----
 
   const handleSeek = useCallback((t: number) => {
@@ -192,7 +205,8 @@ export function App() {
   const loadVad = useCallback(async (f: File) => {
     setVadStatus('...');
     try {
-      setVadBuffer(await f.arrayBuffer());
+      const buf = await f.arrayBuffer();
+      setVadProbs(parseNpy(buf));
       setVadStatus('\u2713');
     } catch (e) {
       setVadStatus('\u2717');
@@ -308,6 +322,35 @@ export function App() {
         case 'ArrowRight':
           tl.pan((tl.viewEnd - tl.viewStart) * 0.1);
           break;
+        case '[': {
+          const probs = vadProbsRef.current;
+          if (probs) {
+            const blocks = findVADBlocks(probs, 0.032, vadEntryRef.current, vadExitRef.current);
+            const b = prevVADBlock(blocks, tl.cursor);
+            if (b) {
+              handleSeek(b.start);
+              const span = tl.viewEnd - tl.viewStart;
+              tl.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+            }
+          }
+          break;
+        }
+        case ']': {
+          const probs = vadProbsRef.current;
+          if (probs) {
+            const blocks = findVADBlocks(probs, 0.032, vadEntryRef.current, vadExitRef.current);
+            const b = nextVADBlock(blocks, tl.cursor);
+            if (b) {
+              handleSeek(b.start);
+              const span = tl.viewEnd - tl.viewStart;
+              tl.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+            }
+          }
+          break;
+        }
+        case '?':
+          setShowShortcuts(v => !v);
+          break;
         case '0':
           handleChannelChange(-1);
           break;
@@ -320,7 +363,7 @@ export function App() {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [tl, audio, handlePlayToggle, handleChannelChange]);
+  }, [tl, audio, handlePlayToggle, handleChannelChange, handleSeek]);
 
   // ---- Render ----
 
@@ -340,6 +383,7 @@ export function App() {
         onPlayToggle={handlePlayToggle}
         gainValue={gainValue}
         onGainChange={handleGainChange}
+        onShowShortcuts={() => setShowShortcuts(true)}
       />
 
       <div id="main-area">
@@ -359,7 +403,7 @@ export function App() {
             <ResizeHandle direction="row" onDrag={resizeTrack.wfVad} />
             <VADTrack
               timeline={tl}
-              vadBuffer={vadBuffer}
+              vadProbs={vadProbs}
               entryThreshold={vadEntry}
               exitThreshold={vadExit}
               onEntryChange={setVadEntry}
@@ -398,6 +442,8 @@ export function App() {
       <div id="drop-overlay" hidden={!showDrop} onDragLeave={() => setShowDrop(false)}>
         Drop WAV / NPY / JSON files
       </div>
+
+      {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }

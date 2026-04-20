@@ -4,6 +4,8 @@ import { fmtTime } from '../lib/asr';
 
 const ZOOM_PRESETS = [
   { label: '1s', span: 1 },
+  { label: '5s', span: 5 },
+  { label: '10s', span: 10 },
   { label: '20s', span: 20 },
   { label: '1m', span: 80 },
   { label: '5m', span: 300 },
@@ -25,6 +27,7 @@ interface ToolbarProps {
   onPlayToggle: () => void;
   gainValue: number;
   onGainChange: (v: number) => void;
+  onShowShortcuts: () => void;
 }
 
 export const Toolbar = memo(function Toolbar({
@@ -33,6 +36,7 @@ export const Toolbar = memo(function Toolbar({
   channelCount, channel, onChannelChange,
   playing, canPlay, onPlayToggle,
   gainValue, onGainChange,
+  onShowShortcuts,
 }: ToolbarProps) {
   const timeRef = useRef<HTMLSpanElement>(null);
   const spanRef = useRef<HTMLSpanElement>(null);
@@ -154,6 +158,7 @@ export const Toolbar = memo(function Toolbar({
           <span id="gain-value">{gainValue.toFixed(1)}x</span>
         </label>
         <span ref={timeRef} id="time-display">--:-- / --:--</span>
+        <button className="zoom-btn" onClick={onShowShortcuts} title="Keyboard shortcuts (?)">?</button>
       </div>
     </header>
   );

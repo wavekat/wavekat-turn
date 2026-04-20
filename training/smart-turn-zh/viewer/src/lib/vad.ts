@@ -1,5 +1,49 @@
 import type { Timeline } from './timeline';
 
+export interface VADBlock {
+  start: number; // seconds
+  end: number;   // seconds
+}
+
+export function findVADBlocks(
+  probs: Float32Array,
+  frameSec: number,
+  entryThreshold: number,
+  exitThreshold: number,
+): VADBlock[] {
+  const blocks: VADBlock[] = [];
+  let active = false;
+  let blockStart = 0;
+
+  for (let i = 0; i < probs.length; i++) {
+    if (!active && probs[i] >= entryThreshold) {
+      active = true;
+      blockStart = i * frameSec;
+    } else if (active && probs[i] <= exitThreshold) {
+      active = false;
+      blocks.push({ start: blockStart, end: i * frameSec });
+    }
+  }
+  if (active) {
+    blocks.push({ start: blockStart, end: probs.length * frameSec });
+  }
+  return blocks;
+}
+
+export function nextVADBlock(blocks: VADBlock[], cursor: number): VADBlock | null {
+  for (const b of blocks) {
+    if (b.start > cursor + 0.001) return b;
+  }
+  return null;
+}
+
+export function prevVADBlock(blocks: VADBlock[], cursor: number): VADBlock | null {
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i].start < cursor - 0.001) return blocks[i];
+  }
+  return null;
+}
+
 export class VADRenderer {
   probs: Float32Array | null = null;
   entryThreshold = 0.3;
@@ -115,7 +159,7 @@ export class VADRenderer {
   }
 }
 
-function parseNpy(buf: ArrayBuffer): Float32Array {
+export function parseNpy(buf: ArrayBuffer): Float32Array {
   const bytes = new Uint8Array(buf);
   const major = bytes[6];
   let headerLen: number, dataOffset: number;

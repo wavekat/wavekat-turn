@@ -1,11 +1,11 @@
-import { useRef, useEffect, useCallback, memo } from 'react';
+import { useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import type { Timeline } from '../lib/timeline';
-import { VADRenderer } from '../lib/vad';
+import { VADRenderer, findVADBlocks, nextVADBlock, prevVADBlock } from '../lib/vad';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 
 interface VADTrackProps {
   timeline: Timeline;
-  vadBuffer: ArrayBuffer | null;
+  vadProbs: Float32Array | null;
   entryThreshold: number;
   exitThreshold: number;
   onEntryChange: (v: number) => void;
@@ -14,7 +14,7 @@ interface VADTrackProps {
 }
 
 export const VADTrack = memo(function VADTrack({
-  timeline, vadBuffer, entryThreshold, exitThreshold,
+  timeline, vadProbs, entryThreshold, exitThreshold,
   onEntryChange, onExitChange, onSeek,
 }: VADTrackProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,24 +49,51 @@ export const VADTrack = memo(function VADTrack({
     return () => { unsub(); ro.disconnect(); rendererRef.current = null; };
   }, [timeline, draw]);
 
-  // Load VAD data when buffer changes
+  // Load VAD data when probs change
   useEffect(() => {
-    if (vadBuffer && rendererRef.current) {
-      rendererRef.current.load(vadBuffer);
+    if (vadProbs && rendererRef.current) {
+      rendererRef.current.probs = vadProbs;
       draw();
     }
-  }, [vadBuffer, draw]);
+  }, [vadProbs, draw]);
 
   // Redraw on threshold changes
   useEffect(draw, [entryThreshold, exitThreshold, draw]);
 
   useCanvasInteraction(canvasRef, timeline, onSeek);
 
+  const blocks = useMemo(
+    () => vadProbs ? findVADBlocks(vadProbs, 0.032, entryThreshold, exitThreshold) : [],
+    [vadProbs, entryThreshold, exitThreshold],
+  );
+
+  const handlePrev = useCallback(() => {
+    const b = prevVADBlock(blocks, timeline.cursor);
+    if (b) {
+      onSeek(b.start);
+      const span = timeline.viewEnd - timeline.viewStart;
+      timeline.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+    }
+  }, [blocks, timeline, onSeek]);
+
+  const handleNext = useCallback(() => {
+    const b = nextVADBlock(blocks, timeline.cursor);
+    if (b) {
+      onSeek(b.start);
+      const span = timeline.viewEnd - timeline.viewStart;
+      timeline.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+    }
+  }, [blocks, timeline, onSeek]);
+
   return (
     <div className="track" id="vad-track">
       <span className="track-label">VAD</span>
       <canvas ref={canvasRef} />
       <div id="vad-thresholds">
+        <div className="vad-nav">
+          <button className="vad-nav-btn" onClick={handlePrev} disabled={!vadProbs} title="Previous VAD block ([)">&#9664;</button>
+          <button className="vad-nav-btn" onClick={handleNext} disabled={!vadProbs} title="Next VAD block (])">&#9654;</button>
+        </div>
         <label>
           Entry{' '}
           <input
