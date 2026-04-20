@@ -68,24 +68,37 @@ trivial — read the header to get length, then wrap the remaining bytes as a
 
 ```
 viewer/
-├── index.html          # single entry point
+├── index.html
 ├── src/
-│   ├── main.ts         # bootstrap, file loading, layout
-│   ├── audio.ts        # WAV decode, channel extraction, LOD cache
-│   ├── waveform.ts     # Canvas waveform renderer
-│   ├── spectrogram.ts  # Canvas spectrogram renderer (FFT in Worker)
-│   ├── vad.ts          # .npy parser + VAD curve renderer
-│   ├── asr.ts          # ASR JSON loader + transcript panel + search
-│   ├── timeline.ts     # shared time axis, zoom/pan state, cursor sync
-│   └── fft-worker.ts   # Web Worker for spectrogram computation
+│   ├── main.tsx              # React bootstrap
+│   ├── App.tsx               # root component, file loading, keyboard shortcuts
+│   ├── style.css             # dark theme, responsive layout
+│   ├── lib/
+│   │   ├── audio.ts          # WAV decode, channel extraction, LOD pyramid
+│   │   ├── waveform.ts       # Canvas waveform renderer
+│   │   ├── vad.ts            # .npy parser + VAD curve renderer
+│   │   ├── asr.ts            # ASR JSON loader + search + overlay drawing
+│   │   ├── timeline.ts       # shared time axis, zoom/pan state, cursor sync
+│   │   ├── spectrogram.ts    # tile-cached spectrogram renderer + colormap
+│   │   └── fft-worker.ts     # Web Worker for STFT computation
+│   ├── components/
+│   │   ├── Toolbar.tsx       # file controls, channel selector, playback
+│   │   ├── WaveformTrack.tsx # waveform canvas + ASR label overlays
+│   │   ├── VADTrack.tsx      # VAD canvas + threshold inputs
+│   │   ├── SpectrogramTrack.tsx # spectrogram canvas (FFT tiles)
+│   │   ├── ASRPanel.tsx      # search bar + transcript list
+│   │   └── Minimap.tsx       # overview bar with viewport indicator
+│   └── hooks/
+│       ├── usePlayback.ts    # Web Audio API playback, gain, auto-scroll
+│       └── useCanvasInteraction.ts  # wheel zoom, drag pan, click-to-seek
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts
 ```
 
-**Stack**: TypeScript + Vite (dev server + build). No framework — vanilla DOM
-for the panels, Canvas 2D for all visualizations. Keeps the bundle tiny and
-avoids framework overhead on large data.
+**Stack**: React 19 + TypeScript + Vite. Canvas 2D for all visualizations.
+React manages component state and layout; rendering libraries (`waveform.ts`,
+`vad.ts`, `asr.ts`) draw directly to canvas refs.
 
 ## Performance Strategy
 
@@ -191,33 +204,35 @@ time spans on the timeline canvas.
 
 ## Implementation Phases
 
-### Phase 1 — Scaffold + waveform
+### Phase 1 — Scaffold + waveform ✅
 
-- Vite project setup, HTML shell, file drop zone.
-- WAV decode via `AudioContext.decodeAudioData`.
-- LOD pyramid builder (Web Worker).
-- Canvas waveform renderer with pan/zoom.
-- Channel selector (individual + "All" merged view).
-- Audio playback with seek.
+- [x] Vite project setup, HTML shell, file drop zone.
+- [x] WAV decode via `AudioContext.decodeAudioData`.
+- [x] LOD pyramid builder (main thread, 4× decimation levels).
+- [x] Canvas waveform renderer with pan/zoom.
+- [x] Channel selector (individual + "All" merged view).
+- [x] Audio playback with seek.
 
-### Phase 2 — VAD + ASR
+### Phase 2 — VAD + ASR ✅
 
-- `.npy` parser (typed array).
-- VAD probability canvas, synced to waveform timeline.
-- Threshold line (draggable or input).
-- ASR JSON loader, transcript panel.
-- Click sentence to seek.
+- [x] `.npy` parser (typed array).
+- [x] VAD probability canvas, synced to waveform timeline.
+- [x] Entry/exit threshold inputs with hysteresis logic.
+- [x] ASR JSON loader, transcript panel.
+- [x] Click sentence to seek.
 
-### Phase 3 — Search + polish
+### Phase 3 — Search + polish ✅
 
-- ASR text search with highlight on timeline.
-- Prev/Next navigation.
-- Minimap overview bar.
-- Keyboard shortcuts.
-- Responsive layout, loading indicators, error handling.
+- [x] ASR text search with highlight on timeline.
+- [x] Prev/Next navigation.
+- [x] Minimap overview bar.
+- [x] Keyboard shortcuts.
+- [x] Responsive layout, loading indicators, error handling.
+- [x] Character-level karaoke highlighting during playback.
+- [x] Drag-and-drop file loading.
 
-### Phase 4 — Spectrogram
+### Phase 4 — Spectrogram ✅
 
-- FFT Web Worker with tile caching.
-- Spectrogram canvas, synced timeline.
-- Color map (e.g. viridis or magma).
+- [x] FFT Web Worker with tile caching (10 s tiles, FFT 512 / hop 256).
+- [x] Spectrogram canvas, synced timeline, frequency axis labels.
+- [x] Color map (magma).

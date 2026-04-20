@@ -166,6 +166,10 @@ button:disabled {
   max-height: 120px;
 }
 
+#spectrogram-track {
+  min-height: 120px;
+}
+
 .scale-toggle {
   position: absolute;
   top: 4px;

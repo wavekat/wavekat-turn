@@ -9,6 +9,7 @@ import {
 import { Toolbar } from './components/Toolbar';
 import { WaveformTrack } from './components/WaveformTrack';
 import { VADTrack } from './components/VADTrack';
+import { SpectrogramTrack } from './components/SpectrogramTrack';
 import { Minimap } from './components/Minimap';
 import { ASRPanel } from './components/ASRPanel';
 import { usePlayback } from './hooks/usePlayback';
@@ -283,6 +284,12 @@ export function App() {
           exitThreshold={vadExit}
           onEntryChange={setVadEntry}
           onExitChange={setVadExit}
+          onSeek={handleSeek}
+        />
+        <SpectrogramTrack
+          timeline={tl}
+          audio={audio}
+          channel={channel}
           onSeek={handleSeek}
         />
       </div>
