@@ -198,6 +198,22 @@ $('wf-scale').onclick = (e) => {
   renderAll();
 };
 
+// Zoom level presets
+$('zoom-levels').onclick = (e) => {
+  const btn = (e.target as HTMLElement).closest('.zoom-btn') as HTMLElement | null;
+  if (!btn) return;
+  const span = +btn.dataset.span!;
+  if (span === 0) {
+    tl.setView(0, tl.duration);
+  } else {
+    const center = (tl.viewStart + tl.viewEnd) / 2;
+    tl.setView(center - span / 2, center + span / 2);
+  }
+  for (const b of $('zoom-levels').querySelectorAll('.zoom-btn')) b.classList.remove('active');
+  btn.classList.add('active');
+  renderAll();
+};
+
 searchIn.oninput = () => { asr.search(searchIn.value); renderAll(); };
 prevBtn.onclick = () => { asr.prev(); renderAll(); };
 nextBtn.onclick = () => { asr.next(); renderAll(); };

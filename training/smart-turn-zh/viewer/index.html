@@ -14,6 +14,14 @@
         <span class="status" id="vad-status"></span>
         <span class="status" id="asr-status"></span>
       </div>
+      <div id="zoom-levels">
+        <button class="zoom-btn" data-span="1">1s</button>
+        <button class="zoom-btn" data-span="20">20s</button>
+        <button class="zoom-btn" data-span="80">1m</button>
+        <button class="zoom-btn" data-span="300">5m</button>
+        <button class="zoom-btn" data-span="1200">20m</button>
+        <button class="zoom-btn" data-span="0">Full</button>
+      </div>
       <div id="playback-controls">
         <select id="channel-select" disabled><option value="-1">All</option></select>
         <button id="play-btn" disabled title="Space">&#9654;</button>
@@ -25,8 +33,8 @@
       <div class="track" id="waveform-track">
         <span class="track-label">Waveform</span>
         <div id="wf-scale" class="scale-toggle">
-          <button class="scale-btn active" data-scale="linear">Linear</button>
-          <button class="scale-btn" data-scale="dB">dB</button>
+          <button class="scale-btn" data-scale="linear">Linear</button>
+          <button class="scale-btn active" data-scale="dB">dB</button>
         </div>
         <canvas id="waveform-canvas"></canvas>
       </div>

@@ -5,7 +5,7 @@ export type WaveformScale = 'linear' | 'dB';
 
 export class WaveformRenderer {
   channel = -1; // -1 = merged all channels
-  scale: WaveformScale = 'linear';
+  scale: WaveformScale = 'dB';
   private ctx: CanvasRenderingContext2D;
 
   constructor(
@@ -40,6 +40,26 @@ export class WaveformRenderer {
     ctx.moveTo(0, h / 2);
     ctx.lineTo(w, h / 2);
     ctx.stroke();
+
+    // dB grid lines
+    if (this.scale === 'dB') {
+      const mid = h / 2, amp = mid * 0.95;
+      ctx.font = '9px monospace';
+      ctx.textBaseline = 'middle';
+      for (const db of [-6, -12, -24, -48]) {
+        const norm = Math.max(0, (db + 60) / 60);
+        const yUp = mid - norm * amp;
+        const yDn = mid + norm * amp;
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, yUp); ctx.lineTo(w, yUp);
+        ctx.moveTo(0, yDn); ctx.lineTo(w, yDn);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillText(`${db}`, 2, yUp);
+      }
+    }
 
     const sr = audio.sampleRate;
     const s0 = Math.floor(tl.viewStart * sr);
