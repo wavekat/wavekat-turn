@@ -74,7 +74,22 @@ export const Toolbar = memo(function Toolbar({
         <span className="status">{vadStatus}</span>
         <span className="status">{asrStatus}</span>
       </div>
-      <div id="zoom-levels">
+      <div id="zoom-controls">
+        <button
+          className="zoom-btn"
+          onClick={() => { timeline.zoom(0.5, 0.5); setActiveZoom(null); }}
+          title="Zoom in (+)"
+        >
+          +
+        </button>
+        <button
+          className="zoom-btn"
+          onClick={() => { timeline.zoom(2, 0.5); setActiveZoom(null); }}
+          title="Zoom out (-)"
+        >
+          &minus;
+        </button>
+        <span className="zoom-sep" />
         {ZOOM_PRESETS.map((z, i) => (
           <button
             key={z.label}
