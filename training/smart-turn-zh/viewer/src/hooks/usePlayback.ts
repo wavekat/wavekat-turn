@@ -15,9 +15,11 @@ export function usePlayback(timeline: Timeline, audio: AudioStore) {
   const gainValueRef = useRef(10.0);
   const playingRef = useRef(false);
   const rafIdRef = useRef(0);
+  const segmentEndRef = useRef(0);
 
   const stop = useCallback(() => {
     playingRef.current = false;
+    segmentEndRef.current = 0;
     cancelAnimationFrame(rafIdRef.current);
 
     if (srcRef.current) {
@@ -76,7 +78,8 @@ export function usePlayback(timeline: Timeline, audio: AudioStore) {
       const a = actxRef.current;
       if (!a) return;
       const t = playOffRef.current + (a.currentTime - playT0Ref.current);
-      if (t >= timeline.duration) { stopRef.current(); return; }
+      const endAt = segmentEndRef.current;
+      if (t >= timeline.duration || (endAt > 0 && t >= endAt)) { stopRef.current(); return; }
       timeline.cursor = t;
       // Auto-scroll when cursor exits viewport
       if (t > timeline.viewEnd) {
@@ -89,6 +92,11 @@ export function usePlayback(timeline: Timeline, audio: AudioStore) {
     };
     rafIdRef.current = requestAnimationFrame(loop);
   }, [audio, timeline]);
+
+  const playSegment = useCallback((start: number, end: number, channel: number) => {
+    segmentEndRef.current = end;
+    play(start, channel);
+  }, [play]);
 
   const setGain = useCallback((value: number) => {
     gainValueRef.current = value;
@@ -112,5 +120,5 @@ export function usePlayback(timeline: Timeline, audio: AudioStore) {
     };
   }, []);
 
-  return { playing, play, stop, setGain, invalidateBuffer };
+  return { playing, play, playSegment, stop, setGain, invalidateBuffer };
 }

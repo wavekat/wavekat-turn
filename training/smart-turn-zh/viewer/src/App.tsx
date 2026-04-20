@@ -110,16 +110,18 @@ export function App() {
   }, []);
 
   // Playback
-  const { playing, play, stop, setGain, invalidateBuffer } = usePlayback(tl, audio);
+  const { playing, play, playSegment, stop, setGain, invalidateBuffer } = usePlayback(tl, audio);
 
   // Refs for stable callbacks that need current values
   const playingRef = useRef(playing);
   const channelRef = useRef(channel);
   const playRef = useRef(play);
+  const playSegmentRef = useRef(playSegment);
   const stopRef = useRef(stop);
   playingRef.current = playing;
   channelRef.current = channel;
   playRef.current = play;
+  playSegmentRef.current = playSegment;
   stopRef.current = stop;
 
   // Sentences ref for search callbacks
@@ -140,6 +142,11 @@ export function App() {
       stopRef.current();
       playRef.current(t, channelRef.current);
     }
+  }, [tl]);
+
+  const handlePlaySegment = useCallback((start: number, end: number) => {
+    tl.setCursor(start);
+    playSegmentRef.current(start, end, channelRef.current);
   }, [tl]);
 
   const handlePlayToggle = useCallback(() => {
@@ -378,6 +385,7 @@ export function App() {
           onNext={handleSearchNext}
           onPrev={handleSearchPrev}
           onSeek={handleSeek}
+          onPlaySegment={handlePlaySegment}
           playing={playing}
         />
       </div>

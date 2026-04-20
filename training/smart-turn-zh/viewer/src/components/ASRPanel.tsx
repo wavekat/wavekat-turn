@@ -15,12 +15,13 @@ interface ASRPanelProps {
   onNext: () => void;
   onPrev: () => void;
   onSeek: (time: number) => void;
+  onPlaySegment: (start: number, end: number) => void;
   playing: boolean;
 }
 
 export const ASRPanel = memo(function ASRPanel({
   timeline, sentences, searchQuery, searchResults, searchResultIdx,
-  onSearchChange, onNext, onPrev, onSeek, playing,
+  onSearchChange, onNext, onPrev, onSeek, onPlaySegment, playing,
 }: ASRPanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const activeCharRef = useRef<HTMLElement | null>(null);
@@ -189,7 +190,11 @@ export const ASRPanel = memo(function ASRPanel({
 
           return (
             <div key={i} className={cls} data-idx={i} data-start={s.start} data-end={s.end}>
-              <span className="time">{fmtTime(s.start / 1000)}</span>
+              <span
+                className="time"
+                onClick={e => { e.stopPropagation(); onPlaySegment(s.start / 1000, s.end / 1000); }}
+                title={`Play ${fmtTime(s.start / 1000)} \u2013 ${fmtTime(s.end / 1000)}`}
+              >{fmtTime(s.start / 1000)}</span>
               <span className="txt">
                 {s.chars.map((c, ci) => {
                   const hl = hlSet?.has(ci) ? ' search-hl' : '';
