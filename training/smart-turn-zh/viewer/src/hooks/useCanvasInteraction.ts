@@ -24,7 +24,7 @@ export function useCanvasInteraction(
         timeline.zoom(e.deltaY > 0 ? 1.25 : 0.8, frac);
       } else {
         const span = timeline.viewEnd - timeline.viewStart;
-        timeline.pan((e.deltaY > 0 ? 0.15 : -0.15) * span);
+        timeline.pan((e.deltaY > 0 ? 0.02 : -0.02) * span);
       }
     };
 

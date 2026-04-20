@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, memo } from 'react';
 import type { Timeline } from '../lib/timeline';
 import {
   type Sentence,
-  matchHlSet, fmtTime, fmtMs, zoomToSentence,
+  matchHlSet, fmtTime, fmtMs,
 } from '../lib/asr';
 
 interface ASRPanelProps {
@@ -25,6 +25,7 @@ export const ASRPanel = memo(function ASRPanel({
   const listRef = useRef<HTMLDivElement>(null);
   const activeCharRef = useRef<HTMLElement | null>(null);
   const activeRangeRef = useRef<[number, number]>([-1, -1]);
+  const activeSentRef = useRef<HTMLElement | null>(null);
 
   // Keep sentences in ref for stable callbacks
   const sentencesRef = useRef(sentences);
@@ -38,8 +39,45 @@ export const ASRPanel = memo(function ASRPanel({
     }
   }, []);
 
+  /** Find the sentence at timeMs, or the nearest one. */
+  const findSentenceAt = useCallback((timeMs: number): number => {
+    const sents = sentencesRef.current;
+    if (!sents.length) return -1;
+
+    // Exact hit
+    for (let i = 0; i < sents.length; i++) {
+      if (timeMs >= sents[i].start && timeMs <= sents[i].end) return i;
+    }
+
+    // Nearest by distance to start or end
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < sents.length; i++) {
+      const d = Math.min(Math.abs(timeMs - sents[i].start), Math.abs(timeMs - sents[i].end));
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }, []);
+
   const highlightAt = useCallback((timeMs: number) => {
-    // Skip if still within current character
+    const sents = sentencesRef.current;
+    const list = listRef.current;
+    if (!list) return;
+
+    // ---- Sentence-level highlight ----
+    const si = findSentenceAt(timeMs);
+    const sentEl = si >= 0 ? list.querySelector(`[data-idx="${si}"]`) as HTMLElement | null : null;
+
+    if (sentEl !== activeSentRef.current) {
+      activeSentRef.current?.classList.remove('active');
+      if (sentEl) {
+        sentEl.classList.add('active');
+        sentEl.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      }
+      activeSentRef.current = sentEl;
+    }
+
+    // ---- Character-level karaoke highlight ----
     if (
       activeCharRef.current &&
       timeMs >= activeRangeRef.current[0] &&
@@ -49,23 +87,15 @@ export const ASRPanel = memo(function ASRPanel({
     }
     clearHighlight();
 
-    const sents = sentencesRef.current;
-    let si = -1;
-    for (let i = 0; i < sents.length; i++) {
-      if (timeMs >= sents[i].start && timeMs <= sents[i].end) { si = i; break; }
-    }
     if (si < 0) return;
-
     const s = sents[si];
     let charIdx = -1;
     for (let ci = 0; ci < s.chars.length; ci++) {
       const c = s.chars[ci];
       if (c.start >= 0 && timeMs >= c.start && timeMs < c.end) { charIdx = ci; break; }
     }
-    if (charIdx < 0) return;
+    if (charIdx < 0 || !sentEl) return;
 
-    const sentEl = listRef.current?.querySelector(`[data-idx="${si}"]`);
-    if (!sentEl) return;
     const txtEl = sentEl.querySelector('.txt');
     if (!txtEl) return;
     const el = txtEl.children[charIdx] as HTMLElement | undefined;
@@ -74,16 +104,16 @@ export const ASRPanel = memo(function ASRPanel({
     el.classList.add('char-active');
     activeCharRef.current = el;
     activeRangeRef.current = [s.chars[charIdx].start, s.chars[charIdx].end];
-    sentEl.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
-  }, [clearHighlight]);
+  }, [clearHighlight, findSentenceAt]);
 
-  // Subscribe to timeline for karaoke highlighting
+  // Subscribe to timeline for highlighting
   useEffect(() => {
     return timeline.onUpdate(() => highlightAt(timeline.cursor * 1000));
   }, [timeline, highlightAt]);
 
-  // Re-apply karaoke after DOM rebuild
+  // Re-apply after DOM rebuild
   useEffect(() => {
+    activeSentRef.current = null;
     clearHighlight();
     highlightAt(timeline.cursor * 1000);
   }, [sentences, searchQuery, searchResults, searchResultIdx, clearHighlight, highlightAt, timeline]);
@@ -106,7 +136,11 @@ export const ASRPanel = memo(function ASRPanel({
     const charEl = (e.target as HTMLElement).closest('.char') as HTMLElement | null;
     const t = charEl ? +charEl.dataset.cs! / 1000 : +el.dataset.start! / 1000;
 
-    zoomToSentence(timeline, sentencesRef.current, sentIdx);
+    // Pan to show the sentence without changing zoom level
+    const span = timeline.viewEnd - timeline.viewStart;
+    if (t < timeline.viewStart || t > timeline.viewEnd) {
+      timeline.setView(t - span * 0.1, t - span * 0.1 + span);
+    }
     onSeek(t);
   }, [timeline, onSeek]);
 

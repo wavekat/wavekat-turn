@@ -385,6 +385,11 @@ button:disabled {
   background: var(--accent-muted);
 }
 
+.sentence.active {
+  background: var(--accent-muted);
+  border-left-color: var(--accent);
+}
+
 .sentence.match {
   background: var(--highlight-match);
   border-left-color: var(--warning);
