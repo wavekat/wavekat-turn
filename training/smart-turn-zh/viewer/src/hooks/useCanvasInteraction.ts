@@ -21,7 +21,7 @@ export function useCanvasInteraction(
       if (e.metaKey || e.ctrlKey) {
         const rect = canvas.getBoundingClientRect();
         const frac = (e.clientX - rect.left) / rect.width;
-        timeline.zoom(e.deltaY > 0 ? 1.25 : 0.8, frac);
+        timeline.zoom(e.deltaY > 0 ? 1.08 : 0.93, frac);
       } else {
         const span = timeline.viewEnd - timeline.viewStart;
         timeline.pan((e.deltaY > 0 ? 0.02 : -0.02) * span);
