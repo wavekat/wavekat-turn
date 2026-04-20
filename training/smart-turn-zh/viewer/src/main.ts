@@ -41,11 +41,15 @@ const asr = new ASRPanel($('asr-panel'), tl);
 
 let actx: AudioContext | null = null;
 let srcNode: AudioBufferSourceNode | null = null;
+let gainNode: GainNode | null = null;
 let playing = false;
 let playT0 = 0;
 let playOff = 0;
 let playBuf: AudioBuffer | null = null;
 let playChannel = -1;
+let gainValue = 10.0;
+const gainSlider = $<HTMLInputElement>('gain-slider');
+const gainDisp = $('gain-value');
 
 function ensurePlayBuf(ch: number): AudioBuffer | null {
   if (playBuf && playChannel === ch) return playBuf;
@@ -59,9 +63,12 @@ function play(offset: number) {
   const buf = ensurePlayBuf(wf.channel);
   if (!buf) return;
   actx = new AudioContext({ sampleRate: audio.sampleRate });
+  gainNode = actx.createGain();
+  gainNode.gain.value = gainValue;
+  gainNode.connect(actx.destination);
   srcNode = actx.createBufferSource();
   srcNode.buffer = buf;
-  srcNode.connect(actx.destination);
+  srcNode.connect(gainNode);
   srcNode.start(0, offset);
   srcNode.onended = () => stop();
   playT0 = actx.currentTime;
@@ -184,6 +191,12 @@ chSel.onchange = () => {
 };
 
 playBtn.onclick = () => playing ? stop() : play(tl.cursor);
+
+gainSlider.oninput = () => {
+  gainValue = +gainSlider.value;
+  gainDisp.textContent = `${gainValue.toFixed(1)}x`;
+  if (gainNode) gainNode.gain.value = gainValue;
+};
 
 vadEntry.oninput = () => { vad.entryThreshold = +vadEntry.value; renderAll(); };
 vadExit.oninput = () => { vad.exitThreshold = +vadExit.value; renderAll(); };

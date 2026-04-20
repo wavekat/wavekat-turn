@@ -103,6 +103,25 @@ button:disabled {
   color: #4fc3f7;
 }
 
+#gain-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #888;
+}
+
+#gain-slider {
+  width: 60px;
+  cursor: pointer;
+}
+
+#gain-value {
+  font-family: monospace;
+  font-size: 11px;
+  min-width: 32px;
+}
+
 #time-display {
   font-family: monospace;
   font-size: 13px;

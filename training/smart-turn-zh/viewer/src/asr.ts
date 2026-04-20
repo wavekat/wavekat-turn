@@ -144,7 +144,8 @@ export class ASRPanel {
     const rowH = fontSize + 6;
     const labelY = h - rowH;
 
-    for (const s of this.sentences) {
+    for (let si = 0; si < this.sentences.length; si++) {
+      const s = this.sentences[si];
       const startSec = s.start / 1000;
       const endSec = s.end / 1000;
       if (endSec < vStart || startSec > vEnd) continue;
@@ -154,6 +155,56 @@ export class ASRPanel {
       const x1 = Math.max(0, rawX1);
       const x2 = Math.min(w, rawX2);
       const regionW = x2 - x1;
+
+      // --- Alternating sentence background (full height) ---
+      const sentColor = si % 2 === 0
+        ? 'rgba(79, 195, 247, 0.06)'
+        : 'rgba(255, 183, 77, 0.06)';
+      ctx.fillStyle = sentColor;
+      ctx.fillRect(x1, 0, regionW, labelY);
+
+      // --- Per-character shading + gap highlighting when zoomed in ---
+      const perChar = s.chars.length > 0 && regionW / s.text.length > 10;
+      if (perChar) {
+        let ci = 0;
+        let prevEndMs = s.start; // track end of previous char to find gaps
+        for (const c of s.chars) {
+          if (c.start < 0) continue;
+          const cEndMs = c.end >= 0 ? c.end : c.start;
+
+          // Gap before this character
+          if (c.start > prevEndMs) {
+            const gx1 = Math.max(0, ((prevEndMs / 1000 - vStart) / vSpan) * w);
+            const gx2 = Math.min(w, ((c.start / 1000 - vStart) / vSpan) * w);
+            if (gx2 > gx1) {
+              ctx.fillStyle = 'rgba(244, 67, 54, 0.12)';
+              ctx.fillRect(gx1, 0, gx2 - gx1, labelY);
+            }
+          }
+
+          // Character region
+          const cx1 = ((c.start / 1000 - vStart) / vSpan) * w;
+          const cx2 = ((cEndMs / 1000 - vStart) / vSpan) * w;
+          const cl = Math.max(0, cx1), cr = Math.min(w, cx2);
+          if (cr > cl) {
+            ctx.fillStyle = ci % 2 === 0
+              ? 'rgba(79, 195, 247, 0.08)'
+              : 'rgba(255, 183, 77, 0.08)';
+            ctx.fillRect(cl, 0, cr - cl, labelY);
+          }
+          prevEndMs = cEndMs;
+          ci++;
+        }
+        // Gap after last character to sentence end
+        if (prevEndMs < s.end) {
+          const gx1 = Math.max(0, ((prevEndMs / 1000 - vStart) / vSpan) * w);
+          const gx2 = Math.min(w, ((endSec - vStart) / vSpan) * w);
+          if (gx2 > gx1) {
+            ctx.fillStyle = 'rgba(244, 67, 54, 0.12)';
+            ctx.fillRect(gx1, 0, gx2 - gx1, labelY);
+          }
+        }
+      }
 
       // --- Sentence boundary lines (full height) ---
       ctx.setLineDash([3, 3]);
@@ -173,12 +224,10 @@ export class ASRPanel {
       }
       ctx.setLineDash([]);
 
-      // --- Per-character segment lines when zoomed in ---
-      const perChar = s.chars.length > 0 && regionW / s.text.length > 10;
+      // --- Per-character boundary lines when zoomed in ---
       if (perChar) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
         ctx.lineWidth = 0.5;
-        let lastEndMs = s.start;
         for (const c of s.chars) {
           if (c.start < 0) continue;
           const cx = ((c.start / 1000 - vStart) / vSpan) * w;
@@ -188,15 +237,53 @@ export class ASRPanel {
             ctx.lineTo(cx, h);
             ctx.stroke();
           }
-          lastEndMs = c.end >= 0 ? c.end : lastEndMs;
         }
       }
 
       if (regionW < 4) continue;
 
       // --- Text label bar at bottom ---
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fillRect(x1, labelY, regionW, rowH);
+      if (perChar) {
+        // Alternating background per character + gap highlights
+        let ci = 0;
+        let prevEnd = s.start;
+        for (const c of s.chars) {
+          if (c.start < 0) continue;
+          const cEnd = c.end >= 0 ? c.end : c.start;
+          // Gap in label bar
+          if (c.start > prevEnd) {
+            const gx1 = Math.max(x1, ((prevEnd / 1000 - vStart) / vSpan) * w);
+            const gx2 = Math.min(x2, ((c.start / 1000 - vStart) / vSpan) * w);
+            if (gx2 > gx1) {
+              ctx.fillStyle = 'rgba(244, 67, 54, 0.35)';
+              ctx.fillRect(gx1, labelY, gx2 - gx1, rowH);
+            }
+          }
+          // Character cell
+          const cx1c = Math.max(x1, ((c.start / 1000 - vStart) / vSpan) * w);
+          const cx2c = Math.min(x2, ((cEnd / 1000 - vStart) / vSpan) * w);
+          if (cx2c > cx1c) {
+            ctx.fillStyle = ci % 2 === 0
+              ? 'rgba(30, 60, 80, 0.85)'
+              : 'rgba(50, 40, 30, 0.85)';
+            ctx.fillRect(cx1c, labelY, cx2c - cx1c, rowH);
+          }
+          prevEnd = cEnd;
+          ci++;
+        }
+        // Trailing gap
+        if (prevEnd < s.end) {
+          const gx1 = Math.max(x1, ((prevEnd / 1000 - vStart) / vSpan) * w);
+          const gx2 = Math.min(x2, ((endSec - vStart) / vSpan) * w);
+          if (gx2 > gx1) {
+            ctx.fillStyle = 'rgba(244, 67, 54, 0.35)';
+            ctx.fillRect(gx1, labelY, gx2 - gx1, rowH);
+          }
+        }
+      } else {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(x1, labelY, regionW, rowH);
+      }
 
       // Clip text to region
       ctx.save();
