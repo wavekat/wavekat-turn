@@ -5,6 +5,26 @@ export class Timeline {
   cursor = 0;
   sampleRate = 16000;
 
+  /** Loop range (seconds). Both 0 = no loop. */
+  loopStart = 0;
+  loopEnd = 0;
+
+  setLoop(start: number, end: number) {
+    this.loopStart = Math.min(start, end);
+    this.loopEnd = Math.max(start, end);
+    this.emit();
+  }
+
+  clearLoop() {
+    this.loopStart = 0;
+    this.loopEnd = 0;
+    this.emit();
+  }
+
+  get hasLoop() {
+    return this.loopEnd > this.loopStart;
+  }
+
   private listeners: Array<() => void> = [];
 
   setDuration(d: number) {

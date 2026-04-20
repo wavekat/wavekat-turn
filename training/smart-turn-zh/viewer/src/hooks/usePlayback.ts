@@ -19,6 +19,8 @@ export function usePlayback(timeline: Timeline, audio: AudioStore) {
 
   const stop = useCallback(() => {
     playingRef.current = false;
+    const hadSegment = segmentEndRef.current > 0;
+    const segStart = playOffRef.current;
     segmentEndRef.current = 0;
     cancelAnimationFrame(rafIdRef.current);
 
@@ -32,6 +34,10 @@ export function usePlayback(timeline: Timeline, audio: AudioStore) {
       timeline.cursor = Math.min(playOffRef.current + elapsed, timeline.duration);
       actxRef.current.close();
       actxRef.current = null;
+    }
+    // Reset cursor to loop start when a loop segment ends
+    if (hadSegment && timeline.hasLoop) {
+      timeline.cursor = segStart;
     }
     gainNodeRef.current = null;
     setPlaying(false);

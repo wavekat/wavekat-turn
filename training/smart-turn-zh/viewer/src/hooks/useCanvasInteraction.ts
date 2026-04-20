@@ -29,11 +29,26 @@ export function useCanvasInteraction(
     };
 
     let drag = false, startX = 0, startVS = 0, moved = false;
+    let selecting = false, selectAnchor = 0;
 
     const onMouseDown = (e: MouseEvent) => {
-      drag = true; moved = false; startX = e.clientX; startVS = timeline.viewStart;
+      if (e.shiftKey) {
+        // Shift+drag: loop range selection
+        selecting = true;
+        const rect = canvas.getBoundingClientRect();
+        selectAnchor = timeline.xToTime(e.clientX - rect.left, rect.width);
+        timeline.setLoop(selectAnchor, selectAnchor);
+      } else {
+        drag = true; moved = false; startX = e.clientX; startVS = timeline.viewStart;
+      }
     };
     const onMouseMove = (e: MouseEvent) => {
+      if (selecting) {
+        const rect = canvas.getBoundingClientRect();
+        const t = timeline.xToTime(e.clientX - rect.left, rect.width);
+        timeline.setLoop(selectAnchor, t);
+        return;
+      }
       if (!drag) return;
       const dx = e.clientX - startX;
       if (Math.abs(dx) > 3) moved = true;
@@ -44,11 +59,21 @@ export function useCanvasInteraction(
       timeline.setView(startVS + dt, startVS + dt + span);
     };
     const onMouseUp = (e: MouseEvent) => {
+      if (selecting) {
+        selecting = false;
+        const rect = canvas.getBoundingClientRect();
+        const t = timeline.xToTime(e.clientX - rect.left, rect.width);
+        timeline.setLoop(selectAnchor, t);
+        // Discard tiny accidental selections
+        if (timeline.loopEnd - timeline.loopStart < 0.05) timeline.clearLoop();
+        return;
+      }
       if (!drag) return;
       drag = false;
       if (!moved) {
         const rect = canvas.getBoundingClientRect();
         const t = timeline.xToTime(e.clientX - rect.left, rect.width);
+        timeline.clearLoop();
         onSeekRef.current?.(t);
       }
     };

@@ -145,6 +145,7 @@ export function App() {
   }, [tl]);
 
   const handlePlaySegment = useCallback((start: number, end: number) => {
+    tl.clearLoop();
     tl.setCursor(start);
     playSegmentRef.current(start, end, channelRef.current);
   }, [tl]);
@@ -152,6 +153,9 @@ export function App() {
   const handlePlayToggle = useCallback(() => {
     if (playingRef.current) {
       stopRef.current();
+    } else if (tl.hasLoop) {
+      tl.setCursor(tl.loopStart);
+      playSegmentRef.current(tl.loopStart, tl.loopEnd, channelRef.current);
     } else {
       playRef.current(tl.cursor, channelRef.current);
     }
@@ -289,6 +293,7 @@ export function App() {
           searchInput?.focus();
           break;
         case 'Escape':
+          tl.clearLoop();
           (document.activeElement as HTMLElement)?.blur();
           break;
         case '=': case '+':

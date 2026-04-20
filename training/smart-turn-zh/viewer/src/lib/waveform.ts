@@ -72,6 +72,22 @@ export class WaveformRenderer {
       this.drawLOD(w, h, s0, s1, spp);
     }
 
+    // Loop range highlight
+    if (tl.hasLoop) {
+      const x0 = Math.max(0, tl.timeToX(tl.loopStart, w));
+      const x1 = Math.min(w, tl.timeToX(tl.loopEnd, w));
+      if (x1 > x0) {
+        ctx.fillStyle = 'rgba(255, 152, 0, 0.15)';
+        ctx.fillRect(x0, 0, x1 - x0, h);
+        ctx.strokeStyle = 'rgba(255, 152, 0, 0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, 0); ctx.lineTo(x0, h);
+        ctx.moveTo(x1, 0); ctx.lineTo(x1, h);
+        ctx.stroke();
+      }
+    }
+
     const cx = tl.timeToX(tl.cursor, w);
     if (cx >= 0 && cx <= w) {
       ctx.strokeStyle = '#ff5722';
