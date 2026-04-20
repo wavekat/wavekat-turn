@@ -43,22 +43,28 @@ export class Timeline {
   }
 
   pan(deltaSec: number) {
-    const span = this.viewEnd - this.viewStart;
     this.setView(this.viewStart + deltaSec, this.viewEnd + deltaSec);
   }
 
-  /** Convert time to x pixel position within width. */
   timeToX(t: number, width: number): number {
     return ((t - this.viewStart) / (this.viewEnd - this.viewStart)) * width;
   }
 
-  /** Convert x pixel position to time. */
   xToTime(x: number, width: number): number {
     return this.viewStart + (x / width) * (this.viewEnd - this.viewStart);
   }
 
-  onUpdate(fn: () => void) {
+  /** Fire listeners without changing state. Used by the playback loop. */
+  flush() {
+    this.emit();
+  }
+
+  onUpdate(fn: () => void): () => void {
     this.listeners.push(fn);
+    return () => {
+      const idx = this.listeners.indexOf(fn);
+      if (idx >= 0) this.listeners.splice(idx, 1);
+    };
   }
 
   private emit() {

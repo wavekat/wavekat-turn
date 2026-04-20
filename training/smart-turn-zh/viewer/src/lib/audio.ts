@@ -87,7 +87,6 @@ export class AudioStore {
     const nch = this.info.channels;
     const levels: LODLevel[] = [];
 
-    // First level: bucket size 256
     const B0 = 256;
     const n0 = Math.ceil(frames / B0);
     const min0 = new Float32Array(n0);
@@ -118,7 +117,6 @@ export class AudioStore {
     }
     levels.push({ min: min0, max: max0, bucketSize: B0 });
 
-    // Coarser levels: each bucket = 4 from previous
     while (levels[levels.length - 1].min.length > 512) {
       const prev = levels[levels.length - 1];
       const F = 4;
@@ -149,7 +147,6 @@ function parseWavHeader(buffer: ArrayBuffer): WavInfo {
   const sampleRate = view.getUint32(24, true);
   const bitsPerSample = view.getUint16(34, true);
 
-  // Search for 'data' chunk
   let offset = 12;
   while (offset < buffer.byteLength - 8) {
     const id = String.fromCharCode(
@@ -165,7 +162,7 @@ function parseWavHeader(buffer: ArrayBuffer): WavInfo {
       return { channels, sampleRate, bitsPerSample, dataOffset, frames };
     }
     offset += 8 + size;
-    if (offset % 2 !== 0) offset++; // WAV chunks are word-aligned
+    if (offset % 2 !== 0) offset++;
   }
   throw new Error('No data chunk found in WAV file');
 }

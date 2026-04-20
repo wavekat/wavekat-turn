@@ -4,7 +4,7 @@ import type { AudioStore } from './audio';
 export type WaveformScale = 'linear' | 'dB';
 
 export class WaveformRenderer {
-  channel = -1; // -1 = merged all channels
+  channel = -1;
   scale: WaveformScale = 'dB';
   private ctx: CanvasRenderingContext2D;
 
@@ -33,7 +33,6 @@ export class WaveformRenderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    // Center line
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
@@ -41,7 +40,6 @@ export class WaveformRenderer {
     ctx.lineTo(w, h / 2);
     ctx.stroke();
 
-    // dB grid lines
     if (this.scale === 'dB') {
       const mid = h / 2, amp = mid * 0.95;
       ctx.font = '9px monospace';
@@ -64,7 +62,7 @@ export class WaveformRenderer {
     const sr = audio.sampleRate;
     const s0 = Math.floor(tl.viewStart * sr);
     const s1 = Math.ceil(tl.viewEnd * sr);
-    const spp = (s1 - s0) / w; // samples per pixel
+    const spp = (s1 - s0) / w;
 
     if (spp <= 1) {
       this.drawRaw(w, h, s0, s1);
@@ -72,7 +70,6 @@ export class WaveformRenderer {
       this.drawLOD(w, h, s0, s1, spp);
     }
 
-    // Playback cursor
     const cx = tl.timeToX(tl.cursor, w);
     if (cx >= 0 && cx <= w) {
       ctx.strokeStyle = '#ff5722';
@@ -84,14 +81,12 @@ export class WaveformRenderer {
     }
   }
 
-  /** Map a linear amplitude [-1,1] to vertical position. */
   private mapY(v: number, mid: number, amp: number): number {
     if (this.scale === 'dB') {
       const sign = v < 0 ? -1 : 1;
       const abs = Math.abs(v);
-      // -60 dB floor, map to 0..1
       const db = abs > 1e-6 ? 20 * Math.log10(abs) : -60;
-      const norm = Math.max(0, (db + 60) / 60); // 0 at -60dB, 1 at 0dB
+      const norm = Math.max(0, (db + 60) / 60);
       return mid - sign * norm * amp;
     }
     return mid - v * amp;
@@ -115,7 +110,6 @@ export class WaveformRenderer {
     const levels = this.audio.getLOD(this.channel);
     if (!levels.length) return;
 
-    // Pick level where bucketSize <= samplesPerPixel
     let lv = levels[0];
     for (const l of levels) {
       if (l.bucketSize <= spp) lv = l;
@@ -129,7 +123,6 @@ export class WaveformRenderer {
     ctx.fillStyle = '#4fc3f7';
     ctx.beginPath();
 
-    // Forward pass: max envelope
     for (let x = 0; x < w; x++) {
       const ss = s0 + (x / w) * span;
       const se = ss + span / w;
@@ -141,7 +134,6 @@ export class WaveformRenderer {
       const y = this.mapY(hi, mid, amp);
       x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
-    // Backward pass: min envelope
     for (let x = w - 1; x >= 0; x--) {
       const ss = s0 + (x / w) * span;
       const se = ss + span / w;

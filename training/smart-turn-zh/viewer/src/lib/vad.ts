@@ -4,7 +4,7 @@ export class VADRenderer {
   probs: Float32Array | null = null;
   entryThreshold = 0.3;
   exitThreshold = 0.1;
-  readonly frameSec = 0.032; // 32 ms per frame
+  readonly frameSec = 0.032;
 
   private ctx: CanvasRenderingContext2D;
 
@@ -41,14 +41,12 @@ export class VADRenderer {
     const startFrame = Math.max(0, Math.floor(vStart / frameSec) - 1);
     const endFrame = Math.min(probs.length, Math.ceil(tl.viewEnd / frameSec) + 1);
 
-    // Compute hysteresis state up to startFrame
     let active = false;
     for (let i = 0; i < startFrame; i++) {
       if (!active && probs[i] >= this.entryThreshold) active = true;
       else if (active && probs[i] <= this.exitThreshold) active = false;
     }
 
-    // Draw active/inactive regions
     let regStart = startFrame;
     let regActive = active;
 
@@ -73,7 +71,6 @@ export class VADRenderer {
     }
     fillRegion(regStart, endFrame, regActive);
 
-    // Probability curve
     ctx.strokeStyle = '#4fc3f7';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -87,11 +84,9 @@ export class VADRenderer {
     }
     ctx.stroke();
 
-    // Threshold lines
     this.drawThresh(w, h, this.entryThreshold, '#ff9800', 'Entry');
     this.drawThresh(w, h, this.exitThreshold, '#f44336', 'Exit');
 
-    // Cursor
     const cx = tl.timeToX(tl.cursor, w);
     if (cx >= 0 && cx <= w) {
       ctx.strokeStyle = '#ff5722';
