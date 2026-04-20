@@ -329,8 +329,10 @@ export function App() {
             const b = prevVADBlock(blocks, tl.cursor);
             if (b) {
               handleSeek(b.start);
-              const span = tl.viewEnd - tl.viewStart;
-              tl.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+              if (b.start < tl.viewStart || b.start > tl.viewEnd) {
+                const span = tl.viewEnd - tl.viewStart;
+                tl.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+              }
             }
           }
           break;
@@ -342,8 +344,10 @@ export function App() {
             const b = nextVADBlock(blocks, tl.cursor);
             if (b) {
               handleSeek(b.start);
-              const span = tl.viewEnd - tl.viewStart;
-              tl.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+              if (b.start < tl.viewStart || b.start > tl.viewEnd) {
+                const span = tl.viewEnd - tl.viewStart;
+                tl.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+              }
             }
           }
           break;
@@ -355,8 +359,10 @@ export function App() {
             if (sents[i].start < cursorMs - 1) {
               const t = sents[i].start / 1000;
               handleSeek(t);
-              const span = tl.viewEnd - tl.viewStart;
-              tl.setView(t - span * 0.2, t - span * 0.2 + span);
+              if (t < tl.viewStart || t > tl.viewEnd) {
+                const span = tl.viewEnd - tl.viewStart;
+                tl.setView(t - span * 0.2, t - span * 0.2 + span);
+              }
               break;
             }
           }
@@ -369,8 +375,10 @@ export function App() {
             if (sents[i].start > cursorMs + 1) {
               const t = sents[i].start / 1000;
               handleSeek(t);
-              const span = tl.viewEnd - tl.viewStart;
-              tl.setView(t - span * 0.2, t - span * 0.2 + span);
+              if (t < tl.viewStart || t > tl.viewEnd) {
+                const span = tl.viewEnd - tl.viewStart;
+                tl.setView(t - span * 0.2, t - span * 0.2 + span);
+              }
               break;
             }
           }

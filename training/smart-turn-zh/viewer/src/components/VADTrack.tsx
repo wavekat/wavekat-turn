@@ -71,8 +71,10 @@ export const VADTrack = memo(function VADTrack({
     const b = prevVADBlock(blocks, timeline.cursor);
     if (b) {
       onSeek(b.start);
-      const span = timeline.viewEnd - timeline.viewStart;
-      timeline.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+      if (b.start < timeline.viewStart || b.start > timeline.viewEnd) {
+        const span = timeline.viewEnd - timeline.viewStart;
+        timeline.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+      }
     }
   }, [blocks, timeline, onSeek]);
 
@@ -80,8 +82,10 @@ export const VADTrack = memo(function VADTrack({
     const b = nextVADBlock(blocks, timeline.cursor);
     if (b) {
       onSeek(b.start);
-      const span = timeline.viewEnd - timeline.viewStart;
-      timeline.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+      if (b.start < timeline.viewStart || b.start > timeline.viewEnd) {
+        const span = timeline.viewEnd - timeline.viewStart;
+        timeline.setView(b.start - span * 0.2, b.start - span * 0.2 + span);
+      }
     }
   }, [blocks, timeline, onSeek]);
 
