@@ -129,6 +129,21 @@ button:disabled {
   min-width: 120px;
 }
 
+/* ---- Main area (tracks + ASR side panel) ---- */
+
+#main-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#tracks-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 /* ---- Tracks ---- */
 
 #tracks {
@@ -141,7 +156,8 @@ button:disabled {
 .track {
   position: relative;
   flex: 1;
-  min-height: 80px;
+  min-height: 0;
+  overflow: hidden;
   border-bottom: 1px solid #2a2a4a;
 }
 
@@ -163,11 +179,11 @@ button:disabled {
 }
 
 #vad-track {
-  max-height: 120px;
+  flex: 0.5;
 }
 
 #spectrogram-track {
-  min-height: 120px;
+  flex: 1;
 }
 
 .scale-toggle {
@@ -231,13 +247,15 @@ button:disabled {
 #asr-panel {
   display: flex;
   flex-direction: column;
-  height: 220px;
+  width: 320px;
   flex-shrink: 0;
+  border-left: 1px solid #2a2a4a;
 }
 
 #search-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 6px 12px;
   background: #16213e;
@@ -324,6 +342,29 @@ button:disabled {
 .sentence .txt .search-hl {
   background: rgba(255, 235, 59, 0.4);
   border-radius: 2px;
+}
+
+/* ---- Resize handles ---- */
+
+.resize-handle {
+  flex-shrink: 0;
+  background: #2a2a4a;
+  z-index: 2;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: rgba(79, 195, 247, 0.5);
+}
+
+.resize-row {
+  height: 6px;
+  cursor: row-resize;
+}
+
+.resize-col {
+  width: 6px;
+  cursor: col-resize;
 }
 
 /* ---- Drop overlay ---- */

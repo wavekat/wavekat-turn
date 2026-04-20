@@ -10,6 +10,7 @@ import { Toolbar } from './components/Toolbar';
 import { WaveformTrack } from './components/WaveformTrack';
 import { VADTrack } from './components/VADTrack';
 import { SpectrogramTrack } from './components/SpectrogramTrack';
+import { ResizeHandle } from './components/ResizeHandle';
 import { Minimap } from './components/Minimap';
 import { ASRPanel } from './components/ASRPanel';
 import { usePlayback } from './hooks/usePlayback';
@@ -43,6 +44,70 @@ export function App() {
 
   // Drop overlay
   const [showDrop, setShowDrop] = useState(false);
+
+  // ---- Layout persistence & resize handlers ----
+
+  const LAYOUT_KEY = 'viewer-layout';
+
+  const [resizeTrack] = useState(() => {
+    const ids = ['waveform-track', 'vad-track', 'spectrogram-track'];
+    const MIN = 30;
+
+    const save = () => {
+      const els = ids.map((id) => document.getElementById(id));
+      const panel = document.getElementById('asr-panel');
+      if (els.some((e) => !e) || !panel) return;
+      const layout = {
+        trackFlex: els.map((e) => e!.offsetHeight),
+        asrWidth: panel.offsetWidth,
+      };
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+    };
+
+    const resize = (aboveIdx: number, belowIdx: number) => (delta: number) => {
+      const els = ids.map((id) => document.getElementById(id));
+      if (els.some((e) => !e)) return;
+      const heights = els.map((e) => e!.offsetHeight);
+
+      heights[aboveIdx] += delta;
+      heights[belowIdx] -= delta;
+      if (heights[aboveIdx] < MIN || heights[belowIdx] < MIN) return;
+
+      els.forEach((e, i) => { e!.style.flex = `${heights[i]} 0 0px`; });
+      save();
+    };
+
+    return {
+      wfVad: resize(0, 1),
+      vadSpec: resize(1, 2),
+      asr: (delta: number) => {
+        const panel = document.getElementById('asr-panel');
+        if (!panel) return;
+        panel.style.width = `${Math.max(200, Math.min(600, panel.offsetWidth - delta))}px`;
+        save();
+      },
+    };
+  });
+
+  // Restore saved layout on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (!raw) return;
+      const layout = JSON.parse(raw) as { trackFlex?: number[]; asrWidth?: number };
+      const ids = ['waveform-track', 'vad-track', 'spectrogram-track'];
+      if (layout.trackFlex?.length === 3) {
+        ids.forEach((id, i) => {
+          const el = document.getElementById(id);
+          if (el) el.style.flex = `${layout.trackFlex![i]} 0 0px`;
+        });
+      }
+      if (layout.asrWidth) {
+        const panel = document.getElementById('asr-panel');
+        if (panel) panel.style.width = `${layout.asrWidth}px`;
+      }
+    } catch { /* ignore corrupt data */ }
+  }, []);
 
   // Playback
   const { playing, play, stop, setGain, invalidateBuffer } = usePlayback(tl, audio);
@@ -265,49 +330,57 @@ export function App() {
         onGainChange={handleGainChange}
       />
 
-      <div id="tracks">
-        <WaveformTrack
+      <div id="main-area">
+        <div id="tracks-column">
+          <div id="tracks">
+            <WaveformTrack
+              timeline={tl}
+              audio={audio}
+              channel={channel}
+              scale={scale}
+              onScaleChange={setScale}
+              sentences={sentences}
+              searchResults={searchResults}
+              searchResultIdx={searchIdx}
+              onSeek={handleSeek}
+            />
+            <ResizeHandle direction="row" onDrag={resizeTrack.wfVad} />
+            <VADTrack
+              timeline={tl}
+              vadBuffer={vadBuffer}
+              entryThreshold={vadEntry}
+              exitThreshold={vadExit}
+              onEntryChange={setVadEntry}
+              onExitChange={setVadExit}
+              onSeek={handleSeek}
+            />
+            <ResizeHandle direction="row" onDrag={resizeTrack.vadSpec} />
+            <SpectrogramTrack
+              timeline={tl}
+              audio={audio}
+              channel={channel}
+              onSeek={handleSeek}
+            />
+          </div>
+
+          <Minimap timeline={tl} audio={audio} channel={channel} />
+        </div>
+
+        <ResizeHandle direction="col" onDrag={resizeTrack.asr} />
+
+        <ASRPanel
           timeline={tl}
-          audio={audio}
-          channel={channel}
-          scale={scale}
-          onScaleChange={setScale}
           sentences={sentences}
+          searchQuery={searchQuery}
           searchResults={searchResults}
           searchResultIdx={searchIdx}
+          onSearchChange={handleSearch}
+          onNext={handleSearchNext}
+          onPrev={handleSearchPrev}
           onSeek={handleSeek}
-        />
-        <VADTrack
-          timeline={tl}
-          vadBuffer={vadBuffer}
-          entryThreshold={vadEntry}
-          exitThreshold={vadExit}
-          onEntryChange={setVadEntry}
-          onExitChange={setVadExit}
-          onSeek={handleSeek}
-        />
-        <SpectrogramTrack
-          timeline={tl}
-          audio={audio}
-          channel={channel}
-          onSeek={handleSeek}
+          playing={playing}
         />
       </div>
-
-      <Minimap timeline={tl} audio={audio} channel={channel} />
-
-      <ASRPanel
-        timeline={tl}
-        sentences={sentences}
-        searchQuery={searchQuery}
-        searchResults={searchResults}
-        searchResultIdx={searchIdx}
-        onSearchChange={handleSearch}
-        onNext={handleSearchNext}
-        onPrev={handleSearchPrev}
-        onSeek={handleSeek}
-        playing={playing}
-      />
 
       <div id="drop-overlay" hidden={!showDrop} onDragLeave={() => setShowDrop(false)}>
         Drop WAV / NPY / JSON files

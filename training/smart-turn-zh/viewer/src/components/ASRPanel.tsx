@@ -131,13 +131,13 @@ export const ASRPanel = memo(function ASRPanel({
             }
           }}
         />
+        <span id="search-count">{searchCount}</span>
         <button
           disabled={!searchResults.length}
           onClick={onPrev}
           title="Shift+Enter"
           dangerouslySetInnerHTML={{ __html: '&#9664;' }}
         />
-        <span id="search-count">{searchCount}</span>
         <button
           disabled={!searchResults.length}
           onClick={onNext}
