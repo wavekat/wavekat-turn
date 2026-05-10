@@ -1,0 +1,36 @@
+VENV := .venv
+PYTHON := $(VENV)/bin/python
+PIP := $(VENV)/bin/pip
+
+.PHONY: help venv install notebook viewer clean
+
+help:
+	@echo "Available targets:"
+	@echo "  venv       Create virtualenv and install dependencies"
+	@echo "  install    Re-install dependencies into existing venv"
+	@echo "  notebook   Launch Jupyter notebook server"
+	@echo "  viewer     Launch audio viewer dev server"
+	@echo "  clean      Remove virtualenv"
+
+venv: $(VENV)/bin/activate
+
+$(VENV)/bin/activate: requirements.txt
+	python3 -m venv $(VENV)
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
+	touch $(VENV)/bin/activate
+
+install: venv
+	$(PIP) install -r requirements.txt
+
+notebook: venv
+	$(VENV)/bin/jupyter lab notebooks/
+
+viewer: viewer/node_modules
+	cd viewer && npm run dev
+
+viewer/node_modules: viewer/package.json
+	cd viewer && npm install
+
+clean:
+	rm -rf $(VENV)
