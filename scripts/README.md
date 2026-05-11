@@ -28,6 +28,17 @@ scripts/.venv/bin/python3 scripts/gen_reference.py
 | File | Description |
 |------|-------------|
 | `tests/fixtures/silence_2s.wav` | 2 s of zeros at 16 kHz (generated if missing) |
-| `tests/fixtures/reference.json` | P(complete) for each fixture clip |
+| `tests/fixtures/reference.json` | P(complete) for each `(backend, clip)` pair |
+
+Each entry in `reference.json` is keyed by `backend` so multiple Smart Turn
+variants can coexist:
+
+- `pipecat` — upstream Pipecat Smart Turn v3 on the English fixtures, plus the
+  same model run on the Mandarin fixtures as a cross-lingual baseline.
+- `wavekat-zh` — WaveKat zh fine-tune of Smart Turn, only run on the
+  Mandarin fixtures (`zh_*.wav`).
+
+The Rust accuracy test (`make accuracy`) filters rows by backend at compile
+time — feature `wavekat-smart-turn` enables the second group.
 
 Commit both files after re-running.

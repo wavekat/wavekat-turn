@@ -1,7 +1,8 @@
 //! Cross-validation accuracy test: Rust pipeline vs. Python reference.
 //!
 //! Verifies that our mel preprocessing and ONNX inference produce probabilities
-//! within ±0.02 of the Python (Pipecat) reference for each fixture audio clip.
+//! within ±0.02 of the Python reference for each fixture audio clip, across
+//! every enabled backend.
 //!
 //! Prerequisites:
 //!   1. Run `python scripts/gen_reference.py` once to produce
@@ -10,6 +11,10 @@
 //!
 //! Run individual regression tests: `cargo test --features pipecat --test accuracy`
 //! Run the full report table:        `make accuracy`
+//!
+//! When the `wavekat-smart-turn` feature is enabled, the report additionally
+//! exercises the WaveKat zh fine-tune against the `zh_*.wav` fixtures. Weights
+//! are downloaded from HuggingFace on first run (cached under `$HF_HOME/hub/`).
 
 use std::path::PathBuf;
 
@@ -34,8 +39,17 @@ fn fixtures_dir() -> PathBuf {
 #[cfg(any(feature = "pipecat"))]
 #[derive(serde::Deserialize)]
 struct RefEntry {
+    /// Which backend produced this reference probability.
+    /// Defaults to "pipecat" so older `reference.json` files keep working.
+    #[serde(default = "default_backend")]
+    backend: String,
     file: String,
     probability: f32,
+}
+
+#[cfg(any(feature = "pipecat"))]
+fn default_backend() -> String {
+    "pipecat".to_string()
 }
 
 #[cfg(any(feature = "pipecat"))]
@@ -48,6 +62,11 @@ fn load_reference() -> Vec<RefEntry> {
         )
     });
     serde_json::from_str(&json).expect("invalid reference.json")
+}
+
+#[cfg(any(feature = "pipecat"))]
+fn entries_for<'a>(entries: &'a [RefEntry], backend: &str) -> Vec<&'a RefEntry> {
+    entries.iter().filter(|e| e.backend == backend).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -76,43 +95,56 @@ impl Row {
 }
 
 // ---------------------------------------------------------------------------
+// Shared audio helpers used by backend modules
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "pipecat")]
+fn load_wav_f32(path: &std::path::Path) -> Vec<f32> {
+    let mut reader = hound::WavReader::open(path)
+        .unwrap_or_else(|e| panic!("failed to open {}: {}", path.display(), e));
+    let spec = reader.spec();
+    assert_eq!(spec.sample_rate, 16_000, "expected 16 kHz");
+    assert_eq!(spec.channels, 1, "expected mono");
+    match spec.sample_format {
+        hound::SampleFormat::Int => reader
+            .samples::<i16>()
+            .map(|s| s.unwrap() as f32 / 32768.0) // match soundfile's normalization
+            .collect(),
+        hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
+    }
+}
+
+#[cfg(feature = "pipecat")]
+fn raw_prob(pred: &wavekat_turn::TurnPrediction) -> f32 {
+    use wavekat_turn::TurnState;
+    match pred.state {
+        TurnState::Finished => pred.confidence,
+        TurnState::Unfinished => 1.0 - pred.confidence,
+        TurnState::Wait => unreachable!(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Pipecat backend
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "pipecat")]
 mod pipecat {
-    use std::path::Path;
-
     use wavekat_turn::audio::PipecatSmartTurn;
-    use wavekat_turn::{AudioFrame, AudioTurnDetector, TurnPrediction, TurnState};
+    use wavekat_turn::{AudioFrame, AudioTurnDetector};
 
-    use super::{fixtures_dir, RefEntry, Row, TOLERANCE};
-
-    fn load_wav_f32(path: &Path) -> Vec<f32> {
-        let mut reader = hound::WavReader::open(path)
-            .unwrap_or_else(|e| panic!("failed to open {}: {}", path.display(), e));
-        let spec = reader.spec();
-        assert_eq!(spec.sample_rate, 16_000, "expected 16 kHz");
-        assert_eq!(spec.channels, 1, "expected mono");
-        match spec.sample_format {
-            hound::SampleFormat::Int => reader
-                .samples::<i16>()
-                .map(|s| s.unwrap() as f32 / 32768.0) // match soundfile's normalization
-                .collect(),
-            hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
-        }
-    }
+    use super::{entries_for, fixtures_dir, load_wav_f32, raw_prob, RefEntry, Row, TOLERANCE};
 
     fn reference_prob(entries: &[RefEntry], name: &str) -> f32 {
         entries
             .iter()
-            .find(|e| e.file == name)
-            .unwrap_or_else(|| panic!("no entry for '{}' in reference.json", name))
+            .find(|e| e.backend == "pipecat" && e.file == name)
+            .unwrap_or_else(|| panic!("no pipecat entry for '{}' in reference.json", name))
             .probability
     }
 
     pub(super) fn rows(entries: &[RefEntry]) -> Vec<Row> {
-        entries
+        entries_for(entries, "pipecat")
             .iter()
             .map(|entry| {
                 let samples = load_wav_f32(&fixtures_dir().join(&entry.file));
@@ -132,18 +164,11 @@ mod pipecat {
             .collect()
     }
 
-    fn raw_prob(pred: &TurnPrediction) -> f32 {
-        match pred.state {
-            TurnState::Finished => pred.confidence,
-            TurnState::Unfinished => 1.0 - pred.confidence,
-            TurnState::Wait => unreachable!(),
-        }
-    }
-
     pub(super) fn run_regression(clip: &str) {
         let entries = super::load_reference();
         let python_prob = reference_prob(&entries, clip);
         let row = rows(&[RefEntry {
+            backend: "pipecat".to_string(),
             file: clip.to_string(),
             probability: python_prob,
         }])
@@ -173,12 +198,53 @@ mod pipecat {
     }
 }
 
-// Add future audio backends here:
+// ---------------------------------------------------------------------------
+// WaveKat zh backend (Smart Turn fine-tune)
+// ---------------------------------------------------------------------------
 //
-// #[cfg(feature = "livekit-audio")]
-// mod livekit_audio {
-//     pub(super) fn rows(entries: &[super::RefEntry]) -> Vec<super::Row> { ... }
-// }
+// Loads `wavekat/smart-turn-ONNX` (zh) from HuggingFace on first run. Subsequent
+// runs hit the HF cache under `$HF_HOME/hub/`. The shared mel/inference pipeline
+// is identical to upstream Pipecat — only the weights differ — so reusing the
+// pipecat helpers is intentional.
+
+#[cfg(feature = "wavekat-smart-turn")]
+mod wavekat {
+    use wavekat_turn::audio::{PipecatSmartTurn, SmartTurnLang, SmartTurnVariant};
+    use wavekat_turn::{AudioFrame, AudioTurnDetector};
+
+    use super::{entries_for, fixtures_dir, load_wav_f32, raw_prob, RefEntry, Row};
+
+    pub(super) fn rows(entries: &[RefEntry]) -> Vec<Row> {
+        let backend_entries = entries_for(entries, "wavekat-zh");
+        if backend_entries.is_empty() {
+            return Vec::new();
+        }
+
+        // Load once, score every clip — the HF download is the slowest step.
+        let mut detector =
+            PipecatSmartTurn::with_variant(SmartTurnVariant::Wavekat(SmartTurnLang::Zh))
+                .expect("failed to load wavekat zh model from HuggingFace");
+
+        backend_entries
+            .iter()
+            .map(|entry| {
+                detector.reset();
+                let samples = load_wav_f32(&fixtures_dir().join(&entry.file));
+                for chunk in samples.chunks(1600) {
+                    detector.push_audio(&AudioFrame::new(chunk, 16_000));
+                }
+                let pred = detector.predict().expect("predict failed");
+                let rust_prob = raw_prob(&pred);
+                Row {
+                    backend: "wavekat-zh",
+                    clip: entry.file.clone(),
+                    python_prob: entry.probability,
+                    rust_prob,
+                }
+            })
+            .collect()
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Accuracy report — prints a markdown table covering all enabled backends
@@ -194,7 +260,12 @@ fn accuracy_report() {
         #[allow(unused_mut)]
         let mut r = Vec::new();
         #[cfg(feature = "pipecat")]
-        r.extend(pipecat::rows(&load_reference()));
+        {
+            let entries = load_reference();
+            r.extend(pipecat::rows(&entries));
+            #[cfg(feature = "wavekat-smart-turn")]
+            r.extend(wavekat::rows(&entries));
+        }
         r
     };
 

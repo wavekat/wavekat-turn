@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Generate reference probabilities from the Pipecat Python pipeline.
+"""Generate reference probabilities from the Python pipelines.
 
 Outputs tests/fixtures/reference.json for use in the Rust accuracy test.
+Each entry is keyed by ``(backend, file)``; the Rust test filters by enabled
+backend at compile time.
 
 Usage:
     pip install transformers onnxruntime numpy soundfile
@@ -9,9 +11,16 @@ Usage:
 
 Re-run when:
   - A fixture WAV changes
-  - The model version changes (bump MODEL_VERSION in build.rs at the same time)
+  - A model version changes (bump MODEL_VERSION constants below + build.rs)
 
-Speech fixture source:
+Backends covered:
+  - ``pipecat``     — upstream Pipecat Smart Turn v3.2-cpu, scored on
+                       silence_2s / speech_finished / speech_mid (English).
+  - ``wavekat-zh``  — WaveKat zh fine-tune of Smart Turn, scored on
+                       zh_speech_finished / zh_speech_finished_short /
+                       zh_speech_mid (Mandarin).
+
+Speech fixture source (English):
   speech_finished.wav and speech_mid.wav are original recordings of:
     "Wavekat knows when you've finished speaking."
   recorded at 16 kHz mono 16-bit PCM.
@@ -34,28 +43,57 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 SCRIPTS = REPO_ROOT / "scripts"
 
-MODEL_URL = "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/main/smart-turn-v3.2-cpu.onnx"
-MODEL_VERSION = "v3.2-cpu"
-MODEL_CACHE = SCRIPTS / f"smart-turn-{MODEL_VERSION}.onnx"
+PIPECAT_MODEL_URL = (
+    "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/main/smart-turn-v3.2-cpu.onnx"
+)
+PIPECAT_MODEL_VERSION = "v3.2-cpu"
+PIPECAT_MODEL_CACHE = SCRIPTS / f"smart-turn-{PIPECAT_MODEL_VERSION}.onnx"
+
+WAVEKAT_ZH_MODEL_URL = (
+    "https://huggingface.co/wavekat/smart-turn-ONNX/resolve/main/zh/smart-turn-cpu.onnx"
+)
+WAVEKAT_ZH_MODEL_VERSION = "wavekat-zh-cpu"
+WAVEKAT_ZH_MODEL_CACHE = SCRIPTS / f"smart-turn-{WAVEKAT_ZH_MODEL_VERSION}.onnx"
 
 SAMPLE_RATE = 16_000
 BUFFER_SAMPLES = 128_000  # 8 seconds at 16 kHz (matches Rust ring buffer)
 
-CLIPS = ["silence_2s.wav", "speech_finished.wav", "speech_mid.wav"]
+# (backend, clip) — drives both the Python pipeline and the entry list written
+# to reference.json. Add new rows here, then re-run the script.
+TASKS: list[tuple[str, str]] = [
+    # Pipecat upstream on English fixtures.
+    ("pipecat", "silence_2s.wav"),
+    ("pipecat", "speech_finished.wav"),
+    ("pipecat", "speech_mid.wav"),
+    # Pipecat upstream on Mandarin fixtures (cross-lingual baseline — useful to
+    # compare against the wavekat-zh fine-tune below).
+    ("pipecat", "zh_speech_finished.wav"),
+    ("pipecat", "zh_speech_finished_short.wav"),
+    ("pipecat", "zh_speech_mid.wav"),
+    # WaveKat zh fine-tune on Mandarin fixtures.
+    ("wavekat-zh", "zh_speech_finished.wav"),
+    ("wavekat-zh", "zh_speech_finished_short.wav"),
+    ("wavekat-zh", "zh_speech_mid.wav"),
+]
+
+BACKEND_MODELS: dict[str, tuple[str, Path]] = {
+    "pipecat": (PIPECAT_MODEL_URL, PIPECAT_MODEL_CACHE),
+    "wavekat-zh": (WAVEKAT_ZH_MODEL_URL, WAVEKAT_ZH_MODEL_CACHE),
+}
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def ensure_model() -> Path:
-    if MODEL_CACHE.exists():
-        return MODEL_CACHE
-    print(f"Downloading model from {MODEL_URL} ...", flush=True)
+def ensure_model(url: str, cache: Path) -> Path:
+    if cache.exists():
+        return cache
+    print(f"Downloading model from {url} ...", flush=True)
     SCRIPTS.mkdir(parents=True, exist_ok=True)
-    urllib.request.urlretrieve(MODEL_URL, MODEL_CACHE)
-    print(f"Saved to {MODEL_CACHE}", flush=True)
-    return MODEL_CACHE
+    urllib.request.urlretrieve(url, cache)
+    print(f"Saved to {cache}", flush=True)
+    return cache
 
 
 def ensure_silence() -> None:
@@ -80,7 +118,10 @@ def load_audio(path: Path) -> np.ndarray:
 
 
 def infer(audio: np.ndarray, session, extractor) -> tuple[float, np.ndarray]:
-    """Run the Pipecat pipeline on audio.
+    """Run a Smart Turn pipeline on audio.
+
+    All Smart Turn variants share the same feature extractor and tensor I/O,
+    so a single helper works for both pipecat and wavekat models.
 
     Returns:
         (probability, mel_tensor) where mel_tensor has shape [80, 800].
@@ -106,22 +147,36 @@ def main() -> None:
         sys.exit(1)
 
     ensure_silence()
-    model_path = ensure_model()
 
     extractor = WhisperFeatureExtractor(chunk_length=8)
-    session = ort.InferenceSession(str(model_path))
+
+    # One ORT session per backend, reused across that backend's clips.
+    sessions: dict[str, "ort.InferenceSession"] = {}
+    for backend, (url, cache) in BACKEND_MODELS.items():
+        if any(b == backend for b, _ in TASKS):
+            model_path = ensure_model(url, cache)
+            sessions[backend] = ort.InferenceSession(str(model_path))
 
     results = []
-    for name in CLIPS:
+    for backend, name in TASKS:
         path = FIXTURES / name
         if not path.exists():
             print(f"ERROR: missing fixture {path}", file=sys.stderr)
             sys.exit(1)
         audio = load_audio(path)
-        prob, mel = infer(audio, session, extractor)
-        np.save(str(FIXTURES / f"{name}.mel.npy"), mel)
-        print(f"  {name}: probability = {prob:.4f}")
-        results.append({"file": name, "probability": round(prob, 6)})
+        prob, mel = infer(audio, sessions[backend], extractor)
+        # Only save mel fixtures for the pipecat backend; the mel preprocessing
+        # is identical across Smart Turn variants, so one set is enough.
+        if backend == "pipecat":
+            np.save(str(FIXTURES / f"{name}.mel.npy"), mel)
+        print(f"  [{backend}] {name}: probability = {prob:.4f}")
+        results.append(
+            {
+                "backend": backend,
+                "file": name,
+                "probability": round(prob, 6),
+            }
+        )
 
     out_path = FIXTURES / "reference.json"
     with open(out_path, "w") as f:
