@@ -192,6 +192,85 @@ fn test_from_file_invalid_path_returns_error() {
     );
 }
 
+/// End-to-end smoke test for the WaveKat HuggingFace download path.
+///
+/// Pulls `wavekat/smart-turn-ONNX` from the Hub (cached in `$HF_HOME/hub/`
+/// after the first run), runs it against the three repo fixtures, and
+/// prints a markdown table of probabilities. Marked `#[ignore]` so CI and
+/// `cargo test` never hit the network unintentionally.
+///
+/// Run with:
+///   cargo test --features wavekat-smart-turn --test pipecat \
+///       -- --ignored wavekat_hf_download_smoke --nocapture
+#[cfg(feature = "wavekat-smart-turn")]
+#[test]
+#[ignore = "network: downloads ~8 MB from huggingface.co"]
+fn wavekat_hf_download_smoke() {
+    use std::path::Path;
+
+    use wavekat_turn::audio::{SmartTurnLang, SmartTurnVariant};
+    use wavekat_turn::TurnState;
+
+    fn fixtures_dir() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("tests/fixtures")
+    }
+
+    fn load_wav(path: &Path) -> Vec<f32> {
+        let mut reader = hound::WavReader::open(path)
+            .unwrap_or_else(|e| panic!("open {}: {e}", path.display()));
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, 16_000);
+        assert_eq!(spec.channels, 1);
+        match spec.sample_format {
+            hound::SampleFormat::Int => reader
+                .samples::<i16>()
+                .map(|s| s.unwrap() as f32 / 32768.0)
+                .collect(),
+            hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
+        }
+    }
+
+    fn p_complete(pred: &TurnPrediction) -> f32 {
+        match pred.state {
+            TurnState::Finished => pred.confidence,
+            TurnState::Unfinished => 1.0 - pred.confidence,
+            TurnState::Wait => unreachable!(),
+        }
+    }
+
+    println!("\nLoading wavekat/smart-turn-ONNX (zh) from HuggingFace…");
+    let mut detector =
+        PipecatSmartTurn::with_variant(SmartTurnVariant::Wavekat(SmartTurnLang::Zh))
+            .expect("HF download / model load failed");
+
+    let clips = ["silence_2s.wav", "speech_finished.wav", "speech_mid.wav"];
+    println!();
+    println!("| Clip | P(complete) | State | Latency (ms) |");
+    println!("|------|-------------|-------|--------------|");
+    for clip in clips {
+        detector.reset();
+        let samples = load_wav(&fixtures_dir().join(clip));
+        for chunk in samples.chunks(1600) {
+            detector.push_audio(&AudioFrame::new(chunk, 16_000));
+        }
+        let pred = detector.predict().expect("predict failed");
+        valid_prediction(&pred);
+        println!(
+            "| `{}` | {:.4} | {:?} | {} |",
+            clip,
+            p_complete(&pred),
+            pred.state,
+            pred.latency_ms,
+        );
+    }
+    println!();
+}
+
 /// Smoke test: latency is measured and non-zero (always runs, including debug).
 #[test]
 fn test_latency_is_measured() {
