@@ -195,9 +195,11 @@ fn test_from_file_invalid_path_returns_error() {
 /// End-to-end smoke test for the WaveKat HuggingFace download path.
 ///
 /// Pulls `wavekat/smart-turn-ONNX` from the Hub (cached in `$HF_HOME/hub/`
-/// after the first run), runs it against the three repo fixtures, and
-/// prints a markdown table of probabilities. Marked `#[ignore]` so CI and
-/// `cargo test` never hit the network unintentionally.
+/// after the first run), runs it against the repo fixtures, and prints a
+/// markdown table of probabilities. Asserts that the three `zh_*` clips
+/// (Mandarin, synthesized with wavekat-tts at 24 kHz and resampled to
+/// 16 kHz via ffmpeg) classify on the expected side of 0.5. Marked
+/// `#[ignore]` so CI and `cargo test` never hit the network unintentionally.
 ///
 /// Run with:
 ///   cargo test --features wavekat-smart-turn --test pipecat \
@@ -248,11 +250,23 @@ fn wavekat_hf_download_smoke() {
         PipecatSmartTurn::with_variant(SmartTurnVariant::Wavekat(SmartTurnLang::Zh))
             .expect("HF download / model load failed");
 
-    let clips = ["silence_2s.wav", "speech_finished.wav", "speech_mid.wav"];
+    // (clip, expected_state) — None means "print only, no assertion".
+    // English clips are kept for diagnostics; the zh fine-tune isn't expected
+    // to score them correctly.
+    let clips: &[(&str, Option<TurnState>)] = &[
+        ("silence_2s.wav", None),
+        ("speech_finished.wav", None),
+        ("speech_mid.wav", None),
+        ("zh_speech_finished.wav", Some(TurnState::Finished)),
+        ("zh_speech_finished_short.wav", Some(TurnState::Finished)),
+        ("zh_speech_mid.wav", Some(TurnState::Unfinished)),
+    ];
+
     println!();
-    println!("| Clip | P(complete) | State | Latency (ms) |");
-    println!("|------|-------------|-------|--------------|");
-    for clip in clips {
+    println!("| Clip | P(complete) | State | Latency (ms) | Expected |");
+    println!("|------|-------------|-------|--------------|----------|");
+    let mut failures = Vec::new();
+    for (clip, expected) in clips {
         detector.reset();
         let samples = load_wav(&fixtures_dir().join(clip));
         for chunk in samples.chunks(1600) {
@@ -260,15 +274,29 @@ fn wavekat_hf_download_smoke() {
         }
         let pred = detector.predict().expect("predict failed");
         valid_prediction(&pred);
+        let exp_label = expected.map(|s| format!("{s:?}")).unwrap_or("—".into());
         println!(
-            "| `{}` | {:.4} | {:?} | {} |",
+            "| `{}` | {:.4} | {:?} | {} | {} |",
             clip,
             p_complete(&pred),
             pred.state,
             pred.latency_ms,
+            exp_label,
         );
+        if let Some(want) = expected {
+            if pred.state != *want {
+                failures.push(format!(
+                    "{clip}: expected {want:?}, got {:?} (P={:.4})",
+                    pred.state,
+                    p_complete(&pred),
+                ));
+            }
+        }
     }
     println!();
+    if !failures.is_empty() {
+        panic!("zh fixture misclassifications:\n  {}", failures.join("\n  "));
+    }
 }
 
 /// Smoke test: latency is measured and non-zero (always runs, including debug).
