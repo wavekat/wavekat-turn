@@ -58,6 +58,40 @@ use crate::onnx;
 use crate::{AudioFrame, AudioTurnDetector, StageTiming, TurnError, TurnPrediction, TurnState};
 
 // ---------------------------------------------------------------------------
+// Model variants
+// ---------------------------------------------------------------------------
+
+/// Language for a WaveKat fine-tune of Pipecat Smart Turn.
+///
+/// Each variant resolves to a `<lang>/smart-turn-cpu.onnx` file inside the
+/// language-agnostic HuggingFace repo `wavekat/smart-turn-ONNX`. The set is
+/// marked `#[non_exhaustive]` because adding a new language must not be a
+/// breaking change.
+#[cfg(feature = "wavekat-smart-turn")]
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SmartTurnLang {
+    /// Mandarin Chinese.
+    Zh,
+}
+
+/// Which set of Smart Turn weights to load.
+///
+/// All variants share the same architecture (Whisper-Tiny encoder + binary
+/// classification head) and ONNX tensor contract — only the weights differ.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SmartTurnVariant {
+    /// Upstream multilingual Pipecat Smart Turn v3 (embedded in the crate).
+    PipecatV3,
+    /// WaveKat language-specialized fine-tune. Resolved at runtime through
+    /// HuggingFace (cached under `$HF_HOME/hub/`) and overridable via
+    /// `WAVEKAT_TURN_MODEL_DIR`.
+    #[cfg(feature = "wavekat-smart-turn")]
+    Wavekat(SmartTurnLang),
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -373,6 +407,10 @@ fn prepare_audio(samples: &[f32]) -> Vec<f32> {
 
 /// Pipecat Smart Turn v3 detector.
 ///
+/// Wraps the Smart Turn v3 architecture (Whisper-Tiny encoder + binary
+/// classification head). Use [`new`] for the embedded upstream weights, or
+/// [`with_variant`] to pick a WaveKat fine-tune at runtime.
+///
 /// Buffers up to 8 seconds of audio internally. Call [`push_audio`] with
 /// every incoming 16 kHz frame, then call [`predict`] when the VAD fires
 /// end-of-speech to get a [`TurnPrediction`].
@@ -392,6 +430,8 @@ fn prepare_audio(samples: &[f32]) -> Vec<f32> {
 /// # }
 /// ```
 ///
+/// [`new`]: Self::new
+/// [`with_variant`]: Self::with_variant
 /// [`push_audio`]: AudioTurnDetector::push_audio
 /// [`predict`]: AudioTurnDetector::predict
 pub struct PipecatSmartTurn {
@@ -409,10 +449,32 @@ unsafe impl Send for PipecatSmartTurn {}
 unsafe impl Sync for PipecatSmartTurn {}
 
 impl PipecatSmartTurn {
-    /// Load the Smart Turn v3.2 model embedded at compile time.
+    /// Load the upstream Pipecat Smart Turn v3.2 model embedded at compile time.
+    ///
+    /// Equivalent to [`with_variant(SmartTurnVariant::PipecatV3)`](Self::with_variant).
     pub fn new() -> Result<Self, TurnError> {
         let session = onnx::session_from_memory(MODEL_BYTES)?;
         Ok(Self::build(session))
+    }
+
+    /// Load a specific variant of the Smart Turn model.
+    ///
+    /// - [`SmartTurnVariant::PipecatV3`] uses the embedded ONNX bytes — no
+    ///   network required.
+    /// - [`SmartTurnVariant::Wavekat`] (when the `wavekat-smart-turn` feature
+    ///   is enabled) downloads the corresponding language file from the
+    ///   `wavekat/smart-turn-ONNX` HuggingFace repo and caches it under
+    ///   `$HF_HOME/hub/`. Set `WAVEKAT_TURN_MODEL_DIR` to point at a
+    ///   pre-populated directory (offline / CI use).
+    pub fn with_variant(variant: SmartTurnVariant) -> Result<Self, TurnError> {
+        match variant {
+            SmartTurnVariant::PipecatV3 => Self::new(),
+            #[cfg(feature = "wavekat-smart-turn")]
+            SmartTurnVariant::Wavekat(lang) => {
+                let path = crate::audio::wavekat_download::resolve_model(lang)?;
+                Self::from_file(path)
+            }
+        }
     }
 
     /// Load a model from a custom path on disk.

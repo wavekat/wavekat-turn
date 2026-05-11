@@ -17,8 +17,15 @@
 //!
 //! | Feature | Backend | Input |
 //! |---------|---------|-------|
-//! | `pipecat` | Pipecat Smart Turn v3 (ONNX) | Audio (16 kHz) |
+//! | `pipecat` | Pipecat Smart Turn v3 (ONNX, embedded) | Audio (16 kHz) |
+//! | `wavekat-smart-turn` | WaveKat language-specialized fine-tunes (ONNX, runtime download) | Audio (16 kHz) |
 //! | `livekit` | LiveKit Turn Detector (ONNX) | Text |
+//!
+//! `wavekat-smart-turn` implies `pipecat` and adds an `hf-hub` runtime
+//! dependency. Weights live in
+//! [`wavekat/smart-turn-ONNX`](https://huggingface.co/wavekat/smart-turn-ONNX)
+//! and are cached under `$HF_HOME/hub/`. Set `WAVEKAT_TURN_MODEL_DIR` to a
+//! directory containing `<lang>/smart-turn-cpu.onnx` to skip the download.
 
 pub mod controller;
 pub mod error;

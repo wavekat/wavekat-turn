@@ -48,6 +48,46 @@ fn test_new_loads_model() {
 }
 
 #[test]
+fn test_with_variant_pipecat_v3_loads_model() {
+    use wavekat_turn::audio::SmartTurnVariant;
+    PipecatSmartTurn::with_variant(SmartTurnVariant::PipecatV3)
+        .expect("with_variant(PipecatV3) should succeed");
+}
+
+/// Exercise the WAVEKAT_TURN_MODEL_DIR override path without touching the
+/// network: drop the embedded Pipecat ONNX into a temp dir under the
+/// expected `<lang>/smart-turn-cpu.onnx` layout and confirm the variant
+/// loader picks it up. The bytes happen to be the upstream model — that's
+/// fine; we are only asserting the file resolution path works.
+#[cfg(feature = "wavekat-smart-turn")]
+#[test]
+fn test_wavekat_variant_uses_local_dir_override() {
+    use wavekat_turn::audio::{SmartTurnLang, SmartTurnVariant};
+
+    let tmp = std::env::temp_dir().join("wavekat_turn_local_dir_test");
+    let lang_dir = tmp.join("zh");
+    std::fs::create_dir_all(&lang_dir).unwrap();
+    let path = lang_dir.join("smart-turn-cpu.onnx");
+    let model_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/smart-turn-v3.2-cpu.onnx"));
+    std::fs::write(&path, model_bytes).unwrap();
+
+    // SAFETY: tests inside this crate that mutate env vars run on the same
+    // process. `cargo test` defaults to single-threaded for harness=false,
+    // but the std test harness parallelises — keep the env var set for the
+    // duration of this test and accept that no other test reads it.
+    unsafe {
+        std::env::set_var("WAVEKAT_TURN_MODEL_DIR", &tmp);
+    }
+    let result = PipecatSmartTurn::with_variant(SmartTurnVariant::Wavekat(SmartTurnLang::Zh));
+    unsafe {
+        std::env::remove_var("WAVEKAT_TURN_MODEL_DIR");
+    }
+
+    let _ = std::fs::remove_dir_all(&tmp);
+    result.expect("with_variant(Wavekat(Zh)) should pick up the local override");
+}
+
+#[test]
 fn test_from_file_loads_model() {
     let tmp = std::env::temp_dir().join("wavekat_turn_test");
     std::fs::create_dir_all(&tmp).unwrap();

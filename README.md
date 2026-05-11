@@ -19,7 +19,14 @@ models behind common Rust traits. Same pattern as
 | Backend | Feature flag | Input | Model size | Inference | License |
 |---------|-------------|-------|------------|-----------|---------|
 | [Pipecat Smart Turn v3](https://github.com/pipecat-ai/smart-turn) | `pipecat` | Audio (16 kHz PCM) | ~8 MB (int8 ONNX) | ~12 ms CPU | BSD 2-Clause |
+| WaveKat Smart Turn fine-tunes ([HF](https://huggingface.co/wavekat/smart-turn-ONNX)) | `wavekat-smart-turn` | Audio (16 kHz PCM) | ~8 MB (int8 ONNX) | ~12 ms CPU | BSD 2-Clause |
 | [LiveKit Turn Detector](https://github.com/livekit/turn-detector) | `livekit` | Text (ASR transcript) | ~400 MB (ONNX) | ~25 ms CPU | LiveKit Model License |
+
+The WaveKat fine-tunes share the upstream Pipecat ONNX contract (same input
+shape, same tensor names) — they're language-specialized weights for the
+same architecture. Use them when you want better behavior on a specific
+language; today Mandarin (`zh`) is the only one shipped, but more will land
+in the same HF repo over time.
 
 ## Quick Start
 
@@ -92,7 +99,32 @@ wavekat-voice -->  orchestrates VAD + turn + ASR + LLM + TTS
 | Flag | Default | Description |
 |------|---------|-------------|
 | `pipecat` | off | Pipecat Smart Turn v3 audio backend (requires `ort`, `ndarray`) |
+| `wavekat-smart-turn` | off | WaveKat language-specialized fine-tunes; implies `pipecat`, adds `hf-hub` runtime download |
 | `livekit` | off | LiveKit text-based backend (requires `ort`, `ndarray`) |
+
+### Selecting a Smart Turn variant
+
+```rust
+use wavekat_turn::audio::{PipecatSmartTurn, SmartTurnVariant};
+# #[cfg(feature = "wavekat-smart-turn")]
+use wavekat_turn::audio::SmartTurnLang;
+
+// Embedded upstream weights — works offline, no setup.
+let detector = PipecatSmartTurn::new()?;
+
+# #[cfg(feature = "wavekat-smart-turn")]
+// WaveKat Mandarin fine-tune — downloaded from HuggingFace on first call,
+// then cached under $HF_HOME/hub/.
+let detector = PipecatSmartTurn::with_variant(
+    SmartTurnVariant::Wavekat(SmartTurnLang::Zh),
+)?;
+```
+
+The first call for a WaveKat variant downloads the ONNX from
+[`wavekat/smart-turn-ONNX`](https://huggingface.co/wavekat/smart-turn-ONNX)
+and caches it under `$HF_HOME/hub/` (default `~/.cache/huggingface/hub/`).
+For offline builds, set `WAVEKAT_TURN_MODEL_DIR` to a directory containing
+`<lang>/smart-turn-cpu.onnx` to skip the download.
 
 ## Important Notes
 
