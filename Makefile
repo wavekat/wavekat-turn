@@ -21,9 +21,11 @@ check:
 test:
 	cargo test --workspace
 
-# Cross-validate Rust mel+ONNX pipeline against Python reference probabilities
+# Cross-validate Rust mel+ONNX pipeline against Python reference probabilities.
+# Builds with `wavekat-smart-turn` so the zh fine-tune rows are also emitted;
+# WaveKat weights are fetched from HuggingFace on first run (cached in $HF_HOME).
 accuracy:
-	cargo test --features pipecat --test accuracy -- --ignored accuracy_report --nocapture
+	cargo test --features wavekat-smart-turn --test accuracy -- --ignored accuracy_report --nocapture
 
 # Compare Rust vs Python mel spectrograms element-wise (requires .npy fixtures)
 mel:

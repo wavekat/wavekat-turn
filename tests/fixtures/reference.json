@@ -1,14 +1,47 @@
 [
   {
+    "backend": "pipecat",
     "file": "silence_2s.wav",
     "probability": 0.987037
   },
   {
+    "backend": "pipecat",
     "file": "speech_finished.wav",
     "probability": 0.984858
   },
   {
+    "backend": "pipecat",
     "file": "speech_mid.wav",
     "probability": 0.047724
+  },
+  {
+    "backend": "pipecat",
+    "file": "zh_speech_finished.wav",
+    "probability": 0.986523
+  },
+  {
+    "backend": "pipecat",
+    "file": "zh_speech_finished_short.wav",
+    "probability": 0.98232
+  },
+  {
+    "backend": "pipecat",
+    "file": "zh_speech_mid.wav",
+    "probability": 0.071746
+  },
+  {
+    "backend": "wavekat-zh",
+    "file": "zh_speech_finished.wav",
+    "probability": 0.766031
+  },
+  {
+    "backend": "wavekat-zh",
+    "file": "zh_speech_finished_short.wav",
+    "probability": 0.875143
+  },
+  {
+    "backend": "wavekat-zh",
+    "file": "zh_speech_mid.wav",
+    "probability": 0.164025
   }
 ]
