@@ -5,6 +5,9 @@ Cargo.lock
 .DS_Store
 .cargo/config.toml
 
+# Claude Code runtime state
+.claude/scheduled_tasks.lock
+
 # Python tooling (scripts/)
 scripts/.venv/
 scripts/__pycache__/
