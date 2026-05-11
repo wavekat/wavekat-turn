@@ -223,8 +223,8 @@ fn wavekat_hf_download_smoke() {
     }
 
     fn load_wav(path: &Path) -> Vec<f32> {
-        let mut reader = hound::WavReader::open(path)
-            .unwrap_or_else(|e| panic!("open {}: {e}", path.display()));
+        let mut reader =
+            hound::WavReader::open(path).unwrap_or_else(|e| panic!("open {}: {e}", path.display()));
         let spec = reader.spec();
         assert_eq!(spec.sample_rate, 16_000);
         assert_eq!(spec.channels, 1);
@@ -246,9 +246,8 @@ fn wavekat_hf_download_smoke() {
     }
 
     println!("\nLoading wavekat/smart-turn-ONNX (zh) from HuggingFace…");
-    let mut detector =
-        PipecatSmartTurn::with_variant(SmartTurnVariant::Wavekat(SmartTurnLang::Zh))
-            .expect("HF download / model load failed");
+    let mut detector = PipecatSmartTurn::with_variant(SmartTurnVariant::Wavekat(SmartTurnLang::Zh))
+        .expect("HF download / model load failed");
 
     // (clip, expected_state) — None means "print only, no assertion".
     // English clips are kept for diagnostics; the zh fine-tune isn't expected
@@ -295,7 +294,10 @@ fn wavekat_hf_download_smoke() {
     }
     println!();
     if !failures.is_empty() {
-        panic!("zh fixture misclassifications:\n  {}", failures.join("\n  "));
+        panic!(
+            "zh fixture misclassifications:\n  {}",
+            failures.join("\n  ")
+        );
     }
 }
 
