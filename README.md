@@ -144,6 +144,15 @@ Tolerance: ±0.02 probability.
 
 Run locally with `make accuracy`. See [`scripts/README.md`](scripts/README.md) for how to regenerate the Python reference.
 
+## Stars
+
+<a href="https://stars.wavekat.com/wavekat/wavekat-turn">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://stars.wavekat.com/wavekat/wavekat-turn/chart.svg?theme=dark">
+    <img alt="wavekat/wavekat-turn stars" src="https://stars.wavekat.com/wavekat/wavekat-turn/chart.svg?theme=light">
+  </picture>
+</a>
+
 ## License
 
 Licensed under [Apache 2.0](LICENSE).
