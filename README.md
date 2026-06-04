@@ -7,7 +7,7 @@
 [![Crates.io](https://img.shields.io/crates/v/wavekat-turn.svg)](https://crates.io/crates/wavekat-turn)
 [![docs.rs](https://docs.rs/wavekat-turn/badge.svg)](https://docs.rs/wavekat-turn)
 
-Unified turn detection for voice pipelines, wrapping multiple open-source
+Unified turn detection for [WaveKat](https://wavekat.com) voice pipelines, wrapping multiple open-source
 models behind common Rust traits. Same pattern as
 [wavekat-vad](https://github.com/wavekat/wavekat-vad).
 
@@ -143,6 +143,12 @@ Tolerance: ±0.02 probability.
 <!-- benchmark-table-end -->
 
 Run locally with `make accuracy`. See [`scripts/README.md`](scripts/README.md) for how to regenerate the Python reference.
+
+## About WaveKat
+
+`wavekat-turn` is part of WaveKat, an open-source ecosystem of Rust crates for building real-time voice pipelines. It handles turn detection — deciding when a speaker has finished — alongside sibling crates for voice activity detection, speech-to-text, and text-to-speech.
+
+See [wavekat.com](https://wavekat.com) for the full project.
 
 ## Stars
 
